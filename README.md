@@ -1,4 +1,4 @@
-# Digital Wardrobe Twin TWINISH 💅🏻
+# Digital Wardrobe Twin: TWINISH 💅🏻
 
 This folder merges the two pieces that were previously in separate zips:
 
