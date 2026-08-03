@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { categories, colors, seasons } from "@/lib/closet-data";
-import { useCloset } from "@/lib/use-wardrobe";
+import { categories, seasons } from "@/lib/closet-data";
+import { useCloset, useColors } from "@/lib/use-wardrobe";
 import { Sticker } from "@/components/scrapbook";
 import { categoryColor } from "@/lib/palette";
 
@@ -26,6 +26,7 @@ function Closet() {
   const [color, setColor] = useState<string | null>(null);
   const [season, setSeason] = useState<string | null>(null);
   const { data: closet } = useCloset();
+  const { data: colors } = useColors();
 
   const items = useMemo(
     () =>

@@ -194,7 +194,7 @@ def outfit_to_dto(outfit: dict, index: int, worn_counts: dict[str, int]) -> dict
     title = " · ".join(p.capitalize() for p in parts) or f"Look {index + 1}"
 
     return {
-        "id": f"gen-{index + 1}",
+        "id": outfit.get("id") or f"gen-{index + 1}",
         "title": title,
         "caption": outfit.get("reasoning", ""),
         "item_ids": item_ids,

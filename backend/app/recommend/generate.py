@@ -14,7 +14,7 @@ from google import genai
 from google.genai import types
 
 from app.recommend.context import OutfitContext
-from app.storage.db import get_item
+from app.storage.db import get_item, save_generated_outfit
 
 # Load the backend .env from the project root when available.
 env_path = find_dotenv(usecwd=True)
@@ -196,4 +196,19 @@ def generate_outfits(shortlist: list[dict], context: OutfitContext) -> list[dict
     if len(non_repeated) < len(validated):
         print(f"Filtered {len(validated) - len(non_repeated)} outfit(s) that exactly repeated a previously liked combination.")
 
-    return non_repeated if non_repeated else validated
+    final_list = non_repeated if non_repeated else validated
+
+    # Persist every surviving outfit now so it has a stable id for
+    # deep-linking (/look/<id>) even before it's ever rated.
+    persisted_outfits = []
+    for outfit in final_list:
+        outfit_id = save_generated_outfit(
+            outfit["item_ids"], outfit["reasoning"], vars(context)
+        )
+        persisted_outfits.append({
+            "id": outfit_id,
+            "item_ids": outfit["item_ids"],
+            "reasoning": outfit["reasoning"],
+        })
+
+    return persisted_outfits

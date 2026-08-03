@@ -168,16 +168,51 @@ export async function generateOutfits(
 
 // --- Feedback ---------------------------------------------------------------
 
-export async function logFeedback(
-  itemIds: string[],
-  rating: number,
-  wornOn?: string,
-): Promise<void> {
-  await fetchJson("/api/feedback", {
+/**
+ * Rate an outfit that was persisted at generation time. Reuses the outfit's
+ * stable id so the rated/worn state shares one identity with the deep-linked
+ * view, instead of minting a throwaway id on first rating.
+ */
+export async function rateOutfit(outfitId: string, rating: number, wornOn?: string): Promise<void> {
+  await fetchJson(`/api/outfits/${encodeURIComponent(outfitId)}/rate`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ item_ids: itemIds, rating, worn_on: wornOn }),
+    body: JSON.stringify({ rating, worn_on: wornOn }),
   });
+}
+
+// --- Deep-link / outfit resolution ------------------------------------------
+
+type RawOutfit = { id: string; item_ids: string[]; reasoning?: string };
+
+/**
+ * Load one persisted outfit by its stable id — the real deep-link fix for
+ * /look/<id>. Resolves item ids against the (cached) closet to build the
+ * same display shape generateOutfits produces. Returns undefined if the
+ * id isn't found or the backend is unreachable.
+ */
+export async function fetchOutfit(id: string): Promise<Outfit | undefined> {
+  try {
+    const known = await fetchItems();
+    const raw = await fetchJson<RawOutfit>(`/api/outfits/${encodeURIComponent(id)}`);
+    const byId = new Map(known.map((i) => [i.id, i]));
+    const items = raw.item_ids.filter((iid) => byId.has(iid));
+    const title =
+      items
+        .slice(0, 3)
+        .map((iid) => byId.get(iid)!.name)
+        .join(" · ") || `Look ${raw.id}`;
+    return { id: raw.id, title, caption: raw.reasoning ?? "", items };
+  } catch {
+    return undefined;
+  }
+}
+
+// --- Colors ----------------------------------------------------------------
+
+/** Distinct base colors actually present in the wardrobe, for the filter chips. */
+export async function fetchColors(): Promise<string[]> {
+  return fetchJson<string[]>("/api/colors");
 }
 
 // --- Add item ----------------------------------------------------------------

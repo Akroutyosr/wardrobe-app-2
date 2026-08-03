@@ -2,8 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, Star } from "lucide-react";
 import { extraFor } from "@/lib/twinish-data";
-import { useCloset, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
-import { logFeedback } from "@/lib/api";
+import { useCloset, useOutfits, useOutfit, itemsByIds } from "@/lib/use-wardrobe";
+import { rateOutfit } from "@/lib/api";
 import { Callout, WashiTape, ArrowNote } from "@/components/scrapbook";
 
 export const Route = createFileRoute("/look/$outfitId")({
@@ -26,8 +26,9 @@ export const Route = createFileRoute("/look/$outfitId")({
 function LookPage() {
   const { outfitId } = Route.useLoaderData();
   const { data: closet } = useCloset();
-  const { data: outfits } = useOutfits();
-  const outfit = outfits.find((o) => o.id === outfitId) ?? outfits[0];
+  const { data: deck } = useOutfits();
+  const { data: fetched } = useOutfit(outfitId);
+  const outfit = fetched ?? deck.find((o) => o.id === outfitId);
   const items = itemsByIds(outfit?.items ?? [], closet);
   const extra = extraFor(outfitId);
   const [active, setActive] = useState(0);
@@ -37,10 +38,29 @@ function LookPage() {
   const rate = (n: number) => {
     setRating(n);
     setNoted(true);
-    if (outfit) void logFeedback(outfit.items ?? [], n).catch(() => {});
+    if (outfit) void rateOutfit(outfit.id, n).catch(() => {});
   };
 
   const activeItem = items[active] ?? items[0];
+
+  if (!outfit) {
+    return (
+      <div className="animate-float-in">
+        <Link
+          to="/planner"
+          className="tappable mb-4 inline-flex items-center gap-1.5 rounded-full bg-card px-4 py-2 text-xs font-bold uppercase tracking-widest shadow-polaroid"
+        >
+          <ArrowLeft size={15} /> Week
+        </Link>
+        <section className="paper rounded-3xl p-8 text-center">
+          <p className="display text-2xl">That look isn’t here anymore</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            It may not be saved on this device — head to the week to pick a fresh one.
+          </p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-float-in">

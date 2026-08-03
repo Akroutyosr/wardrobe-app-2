@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Plus, Star } from "lucide-react";
 import { initialWeek, type PlannerDay } from "@/lib/twinish-data";
 import { useCloset, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
-import { logFeedback } from "@/lib/api";
+import { rateOutfit } from "@/lib/api";
 import { dayColor } from "@/lib/palette";
 
 export const Route = createFileRoute("/planner")({
@@ -42,7 +42,7 @@ function Planner() {
     setWeek((w) => w.map((d, i) => (i === dayIndex ? { ...d, rating } : d)));
     if (fitted?.outfitId) {
       const outfit = outfits.find((o) => o.id === fitted.outfitId);
-      if (outfit) void logFeedback(outfit.items ?? [], rating).catch(() => {});
+      if (outfit) void rateOutfit(outfit.id, rating).catch(() => {});
     }
   };
 

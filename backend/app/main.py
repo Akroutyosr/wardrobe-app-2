@@ -26,12 +26,21 @@ from app.api import (
     OutfitRequest,
     decorate_with_wear_counts,
     item_to_dto,
+    normalize_color,
     outfit_to_dto,
 )
 from app.agent.orchestrator import evaluate_purchase
 from app.recommend.generate import generate_outfits
 from app.recommend.retrieve import retrieve_candidates
-from app.storage.db import get_item, get_wear_counts, list_items, log_outfit_wear
+from app.storage.db import (
+    get_distinct_colors,
+    get_generated_outfit,
+    get_item,
+    get_wear_counts,
+    list_items,
+    log_outfit_wear,
+    rate_generated_outfit,
+)
 from app.storage.ingest import ingest_item
 from app.storage.vectors import find_similar, item_to_text
 from app.tagging.schema import ClothingItem
@@ -144,6 +153,35 @@ def api_generate_outfits(req: OutfitRequest) -> dict:
             outfit_to_dto(outfit, i, counts) for i, outfit in enumerate(generated)
         ],
     }
+
+
+@app.get("/api/outfits/{outfit_id}")
+def api_get_outfit(outfit_id: str) -> dict:
+    outfit = get_generated_outfit(outfit_id)
+    if outfit is None:
+        raise HTTPException(status_code=404, detail=f"No outfit with id {outfit_id}")
+    return outfit
+
+
+class RateOutfitRequest(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    worn_on: str | None = None
+
+
+@app.post("/api/outfits/{outfit_id}/rate")
+def api_rate_outfit(outfit_id: str, req: RateOutfitRequest) -> dict:
+    try:
+        rate_generated_outfit(outfit_id, req.rating, req.worn_on)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"status": "ok"}
+
+
+@app.get("/api/colors")
+def api_colors() -> list[str]:
+    """Distinct colors actually present in the wardrobe, normalized to the
+    base color names the UI chips understand (so chips always match filters)."""
+    return sorted({normalize_color(c) for c in get_distinct_colors() if normalize_color(c)})
 
 
 @app.post("/api/feedback")

@@ -43,6 +43,19 @@ CREATE TABLE IF NOT EXISTS wear_log (
     outfit_id TEXT,
     rating INTEGER
 );
+
+-- Outfits are persisted the moment they're generated so they have a stable
+-- id for deep-linking (e.g. /look/<id>) even before anyone rates them.
+-- Rating later reuses the SAME id, so 'shown' and 'rated' share an identity.
+CREATE TABLE IF NOT EXISTS generated_outfits (
+    id TEXT PRIMARY KEY,
+    context_json TEXT,
+    item_ids_json TEXT,
+    reasoning TEXT,
+    created_at TEXT,
+    rating INTEGER,
+    worn_on TEXT
+);
 """
 
 
@@ -118,6 +131,18 @@ def get_wear_counts() -> dict[str, int]:
     return counts
 
 
+def get_distinct_colors() -> list[str]:
+    """Raw distinct primary/secondary color values across the wardrobe."""
+    init_db()
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT DISTINCT primary_color FROM items WHERE primary_color IS NOT NULL "
+        "UNION SELECT DISTINCT secondary_color FROM items WHERE secondary_color IS NOT NULL"
+    ).fetchall()
+    conn.close()
+    return sorted({row[0] for row in rows if row[0]})
+
+
 def get_item(item_id: str) -> dict | None:
     conn = get_connection()
     row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
@@ -152,13 +177,17 @@ def list_items(category: str | None = None, season: str | None = None) -> list[d
     return results
 
 
-def log_outfit_wear(item_ids: list[str], rating: int, worn_on: str | None = None) -> str:
+def log_outfit_wear(
+    item_ids: list[str], rating: int, worn_on: str | None = None, outfit_id: str | None = None
+) -> str:
     """
     Logs that an outfit (a set of item ids) was worn, with a 1-5 rating.
     Returns the outfit_id shared across all the item rows for this wear.
+    Pass outfit_id to reuse a persisted generated_outfits id so the 'shown'
+    and 'rated/worn' states share one identity.
     """
     init_db()
-    outfit_id = str(uuid.uuid4())[:8]
+    outfit_id = outfit_id or str(uuid.uuid4())[:8]
     worn_on = worn_on or datetime.now(timezone.utc).date().isoformat()
 
     conn = get_connection()
@@ -209,3 +238,57 @@ def get_recent_rated_outfits(limit: int = 5) -> list[dict]:
 
     conn.close()
     return results
+
+
+def save_generated_outfit(item_ids: list[str], reasoning: str, context: dict) -> str:
+    """Persists a generated outfit immediately at creation time -- this is
+    what gives it a stable id for deep-linking, before anyone rates it."""
+    init_db()
+    outfit_id = str(uuid.uuid4())[:8]
+    created_at = datetime.now(timezone.utc).isoformat()
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO generated_outfits
+        (id, context_json, item_ids_json, reasoning, created_at, rating, worn_on)
+        VALUES (?, ?, ?, ?, ?, NULL, NULL)""",
+        (outfit_id, json.dumps(context), json.dumps(item_ids), reasoning, created_at),
+    )
+    conn.commit()
+    conn.close()
+    return outfit_id
+
+
+def get_generated_outfit(outfit_id: str) -> dict | None:
+    init_db()
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM generated_outfits WHERE id = ?", (outfit_id,)
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    result = dict(row)
+    result["item_ids"] = json.loads(result["item_ids_json"])
+    result["context"] = json.loads(result["context_json"]) if result["context_json"] else {}
+    return result
+
+
+def rate_generated_outfit(outfit_id: str, rating: int, worn_on: str | None = None) -> None:
+    """Rates a previously-generated outfit, reusing the same id in wear_log so
+    'shown' and 'rated/worn' states share one identity."""
+    init_db()
+    worn_on = worn_on or datetime.now(timezone.utc).date().isoformat()
+    conn = get_connection()
+    conn.execute(
+        "UPDATE generated_outfits SET rating = ?, worn_on = ? WHERE id = ?",
+        (rating, worn_on, outfit_id),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT item_ids_json FROM generated_outfits WHERE id = ?", (outfit_id,)
+    ).fetchone()
+    conn.close()
+    if row is None:
+        raise ValueError(f"No generated outfit with id {outfit_id}")
+    item_ids = json.loads(row["item_ids_json"])
+    log_outfit_wear(item_ids, rating, worn_on, outfit_id=outfit_id)
