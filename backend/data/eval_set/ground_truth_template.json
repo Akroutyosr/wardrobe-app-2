@@ -1,0 +1,16 @@
+[
+  {
+    "image_path": "data/photos/example_navy_tshirt.jpg",
+    "expected": {
+      "category": "top",
+      "subcategory": "t-shirt",
+      "primary_color": "navy blue",
+      "secondary_color": null,
+      "pattern": "solid",
+      "formality": 1,
+      "seasons": ["spring", "summer"],
+      "fabric_guess": "cotton",
+      "notes": "plain navy crew-neck t-shirt"
+    }
+  }
+]

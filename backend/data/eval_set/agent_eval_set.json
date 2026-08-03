@@ -1,0 +1,4 @@
+[
+  {"image_path": "data/photos/pipo.jpg", "expected_direction": "skip"},
+  {"image_path": "data/photos/fde727faad9b61b6dfb08b2e3b2d9c69.png", "expected_direction": "buy_or_maybe"}
+]
