@@ -145,6 +145,7 @@ This section exists because we already hit real problems here — worth keeping 
 | Phase 6 | FastAPI layer (`backend/app/main.py` + `app/api.py`) exposing tagging/wardrobe/outfits/feedback/agent as REST; frontend wired via `src/lib/api.ts` + React Query, degrading to mock data when the API is down | Reuses Phase 1-5 modules unchanged behind HTTP; frontend keeps Lovable's UI/scrapbook look while swapping mock data for real wardrobe (95 real items). Photos served statically from `backend/data/photos` |
 | Phase 6 | Category vocab mapped server-side (`top/bottom/dress/accessory` → `tops/bottoms/accessories`), formality int → label, colors normalized toward the frontend's base-color chips in `app/api.py` | The Lovable mock used a different vocabulary than the tagging schema; mapping in one DTO module keeps every page untouched |
 | Phase 6 | Backend returns structured `clothing` JSON but the "should-I-buy" agent still runs as a long blocking call (10-30s Gemini); frontend shows a loading receipt meanwhile | Simplest correct v1; move to background job + polling only if it becomes a real UX complaint |
+| Phase 6 data fix | Ran `app/scripts/dedupe_items.py`: the 47-item batch had been ingested twice (95 rows / 48 photos) — kept earliest row per `image_path`, dropped 47 rows + matching Chroma embeddings | Dupes showed up immediately once the frontend listed real wardrobe data; wear_log was unaffected (all references pointed at kept rows). `items` count is now 48 = distinct photos |
 
 ---
 
