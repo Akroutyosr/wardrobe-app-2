@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS items (
     created_at TEXT
 );
 
+-- Hard guard against unwitting duplicate ingestion: each photo may be the
+-- row for at most one item. Applied automatically by init_db() on the next
+-- run; existing data is already deduped so nothing conflicts.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_items_image_path ON items(image_path);
+
 CREATE TABLE IF NOT EXISTS wear_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id TEXT REFERENCES items(id),
@@ -57,22 +62,44 @@ def init_db() -> None:
 
 def add_item(image_path: str, tags: dict) -> dict:
     init_db()
-    item_id = str(uuid.uuid4())[:8]
     created_at = datetime.now(timezone.utc).isoformat()
 
     conn = get_connection()
-    conn.execute(
-        """INSERT INTO items
-        (id, image_path, category, subcategory, primary_color, secondary_color,
-         pattern, formality, seasons, fabric_guess, notes, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            item_id, image_path, tags.get("category"), tags.get("subcategory"),
-            tags.get("primary_color"), tags.get("secondary_color"), tags.get("pattern"),
-            tags.get("formality"), json.dumps(tags.get("seasons", [])),
-            tags.get("fabric_guess"), tags.get("notes"), created_at,
-        ),
-    )
+    existing = conn.execute(
+        "SELECT id, created_at FROM items WHERE image_path = ?", (image_path,)
+    ).fetchone()
+
+    if existing:
+        # Photo already in the wardrobe: update the row in place instead of
+        # inserting a duplicate. Keeps the original created_at so re-tagging
+        # the same photo reads as an edit, not a new item.
+        item_id = existing["id"]
+        created_at = existing["created_at"]
+        conn.execute(
+            """UPDATE items SET category=?, subcategory=?, primary_color=?, secondary_color=?,
+            pattern=?, formality=?, seasons=?, fabric_guess=?, notes=? WHERE id=?""",
+            (
+                tags.get("category"), tags.get("subcategory"), tags.get("primary_color"),
+                tags.get("secondary_color"), tags.get("pattern"), tags.get("formality"),
+                json.dumps(tags.get("seasons", [])), tags.get("fabric_guess"), tags.get("notes"),
+                item_id,
+            ),
+        )
+    else:
+        item_id = str(uuid.uuid4())[:8]
+        conn.execute(
+            """INSERT INTO items
+            (id, image_path, category, subcategory, primary_color, secondary_color,
+             pattern, formality, seasons, fabric_guess, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                item_id, image_path, tags.get("category"), tags.get("subcategory"),
+                tags.get("primary_color"), tags.get("secondary_color"), tags.get("pattern"),
+                tags.get("formality"), json.dumps(tags.get("seasons", [])),
+                tags.get("fabric_guess"), tags.get("notes"), created_at,
+            ),
+        )
+
     conn.commit()
     conn.close()
 
