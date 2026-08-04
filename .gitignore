@@ -4,6 +4,8 @@ backend/__pycache__/
 backend/**/__pycache__/
 backend/.env
 backend/data/tagging_logs/
+backend/data/wardrobe.db
+backend/data/chroma/
 *.pyc
 
 # frontend
