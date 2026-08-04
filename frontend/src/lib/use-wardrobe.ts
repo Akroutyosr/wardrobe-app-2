@@ -42,7 +42,11 @@ export function useOutfits(ctx?: {
       ctx?.notes ?? "",
     ],
     queryFn: () => generateOutfits(ctx),
-    initialData: mockOutfits,
+    // placeholderData (NOT initialData): shows the mock deck while the real
+    // generation loads, but never marks the query fresh — otherwise staleTime
+    // would skip the real fetch entirely and we'd be stuck on mock outfit ids
+    // that don't match the real closet, rendering empty item cards.
+    placeholderData: mockOutfits,
     staleTime: 10 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
@@ -74,7 +78,7 @@ export function useColors() {
   return useQuery({
     queryKey: ["colors"],
     queryFn: () => fetchColors(),
-    initialData: fallbackColors,
+    placeholderData: fallbackColors,
     staleTime: 10 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });

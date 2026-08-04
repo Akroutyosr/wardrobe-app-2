@@ -1,6 +1,6 @@
 import type { Category } from "./closet-data";
 
-/** One confident block colour per category — the Threadit card system. */
+/** One confident block colour per category — the Twinish card system. */
 export const categoryColor: Record<Category, string> = {
   tops: "bg-blossom",
   bottoms: "bg-sky",

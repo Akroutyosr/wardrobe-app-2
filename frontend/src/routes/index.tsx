@@ -10,13 +10,13 @@ import { categoryColor } from "@/lib/palette";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Today's forecast & fit · Threadit" },
+      { title: "Today's forecast & fit · Twinish" },
       {
         name: "description",
         content:
           "17° and clear — here's today's outfit, popped fresh out of your own closet. Weather card, outfit picks, streak and versatility score in one place.",
       },
-      { property: "og:title", content: "Today's forecast & fit · Threadit" },
+      { property: "og:title", content: "Today's forecast & fit · Twinish" },
       {
         property: "og:description",
         content: "A weather card that hands you an outfit from clothes you already own.",
@@ -51,7 +51,7 @@ function Today() {
     <div className="animate-float-in">
       <header className="mb-4 flex items-center justify-between">
         <div>
-          <p className="display text-3xl">Threadit</p>
+          <p className="display text-3xl">Twinish</p>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             Sunday 2 August
           </p>

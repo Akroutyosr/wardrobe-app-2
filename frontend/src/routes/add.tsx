@@ -10,13 +10,13 @@ import preview from "@/assets/item-cardigan.jpg";
 export const Route = createFileRoute("/add")({
   head: () => ({
     meta: [
-      { title: "Add an Item · Threadit" },
+      { title: "Add an Item · Twinish" },
       {
         name: "description",
         content:
-          "Snap a photo and Threadit tags it for you — colour, season and vibe, all editable.",
+          "Snap a photo and Twinish tags it for you — colour, season and vibe, all editable.",
       },
-      { property: "og:title", content: "Add an Item · Threadit" },
+      { property: "og:title", content: "Add an Item · Twinish" },
       { property: "og:description", content: "Add a piece to your closet in a few happy taps." },
     ],
   }),

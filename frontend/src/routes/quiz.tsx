@@ -9,14 +9,14 @@ import { WashiTape, Barcode, DashRule } from "@/components/scrapbook";
 export const Route = createFileRoute("/quiz")({
   head: () => ({
     meta: [
-      { title: "Style Quiz · Threadit" },
+      { title: "Style Quiz · Twinish" },
       {
         name: "description",
         content:
-          "Seven this-or-that swipes and Threadit names your style identity — a keepsake card you can come back to any time.",
+          "Seven this-or-that swipes and Twinish names your style identity — a keepsake card you can come back to any time.",
       },
-      { property: "og:title", content: "Style Quiz · Threadit" },
-      { property: "og:description", content: "This or that? Find your Threadit style identity." },
+      { property: "og:title", content: "Style Quiz · Twinish" },
+      { property: "og:description", content: "This or that? Find your Twinish style identity." },
     ],
   }),
   component: Quiz,

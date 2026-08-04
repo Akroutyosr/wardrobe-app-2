@@ -11,13 +11,13 @@ import candidate from "@/assets/item-blazer.jpg";
 export const Route = createFileRoute("/should-i-buy")({
   head: () => ({
     meta: [
-      { title: "Should I Buy This? · Threadit" },
+      { title: "Should I Buy This? · Twinish" },
       {
         name: "description",
         content:
           "Snap the thing you're eyeing and get an itemised receipt verdict — APPROVED, MAYBE or SKIP — based on what's already hanging in your closet.",
       },
-      { property: "og:title", content: "Should I Buy This? · Threadit" },
+      { property: "og:title", content: "Should I Buy This? · Twinish" },
       {
         property: "og:description",
         content: "A receipt-style second opinion before you buy. Warm, honest, never shamey.",
@@ -136,7 +136,7 @@ function ShouldIBuy() {
         <div className="space-y-5">
           <div className="receipt animate-print relative px-6 py-7">
             <div className="text-center">
-              <p className="display text-3xl">Threadit</p>
+              <p className="display text-3xl">Twinish</p>
               <p className="text-[0.65rem] uppercase tracking-[0.3em]">closet audit receipt</p>
               <p className="mt-1 text-[0.65rem]">verdict on the thing you're eyeing</p>
             </div>

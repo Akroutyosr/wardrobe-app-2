@@ -9,13 +9,13 @@ import { Callout, WashiTape, ArrowNote } from "@/components/scrapbook";
 export const Route = createFileRoute("/look/$outfitId")({
   head: () => ({
     meta: [
-      { title: "The Look · Threadit" },
+      { title: "The Look · Twinish" },
       {
         name: "description",
         content:
           "A scrapbook binder page for one outfit: numbered callouts on every piece, the styling note in handwriting, and a star rating.",
       },
-      { property: "og:title", content: "The Look · Threadit" },
+      { property: "og:title", content: "The Look · Twinish" },
       { property: "og:description", content: "One outfit, annotated like a diary page." },
     ],
   }),

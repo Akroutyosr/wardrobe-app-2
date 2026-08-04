@@ -8,13 +8,13 @@ import { categoryColor } from "@/lib/palette";
 export const Route = createFileRoute("/closet/")({
   head: () => ({
     meta: [
-      { title: "My Closet · Threadit" },
+      { title: "My Closet · Twinish" },
       {
         name: "description",
         content:
           "Every piece you own, laid out like a scrapbook. Filter by category, colour and season.",
       },
-      { property: "og:title", content: "My Closet · Threadit" },
+      { property: "og:title", content: "My Closet · Twinish" },
       { property: "og:description", content: "Your whole wardrobe, calm and browsable." },
     ],
   }),
@@ -27,6 +27,7 @@ function Closet() {
   const [season, setSeason] = useState<string | null>(null);
   const { data: closet } = useCloset();
   const { data: colors } = useColors();
+  const colorList = colors ?? [];
 
   const items = useMemo(
     () =>
@@ -63,7 +64,7 @@ function Closet() {
         ))}
       </div>
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-        {colors.map((c) => (
+        {colorList.map((c) => (
           <Sticker
             key={c}
             tone="lilac"

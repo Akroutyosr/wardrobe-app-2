@@ -8,12 +8,12 @@ import { Confetti } from "@/components/Confetti";
 export const Route = createFileRoute("/ideas")({
   head: () => ({
     meta: [
-      { title: "Outfit Ideas · Threadit" },
+      { title: "Outfit Ideas · Twinish" },
       {
         name: "description",
         content: "Swipe through outfit ideas built from your own wardrobe. Keep the ones you love.",
       },
-      { property: "og:title", content: "Outfit Ideas · Threadit" },
+      { property: "og:title", content: "Outfit Ideas · Twinish" },
       { property: "og:description", content: "Swipe right on outfits made from clothes you own." },
     ],
   }),

@@ -8,13 +8,13 @@ import { Callout, ArrowNote, WashiTape } from "@/components/scrapbook";
 export const Route = createFileRoute("/closet/$itemId")({
   head: () => ({
     meta: [
-      { title: "Item card · Threadit" },
+      { title: "Item card · Twinish" },
       {
         name: "description",
         content:
           "A polaroid item card: main photo, detail shots, arrow callouts on the fabric and construction, plus every outfit it appears in.",
       },
-      { property: "og:title", content: "Item card · Threadit" },
+      { property: "og:title", content: "Item card · Twinish" },
       {
         property: "og:description",
         content: "Fabric notes, wear count and outfit ideas for one piece.",

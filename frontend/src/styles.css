@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Threadit design system — clean cream canvas, bold color-blocked cards,
+ * Twinish design system — clean cream canvas, bold color-blocked cards,
  * elegant serif headlines, crisp sans data, script only for annotations.
  */
 
@@ -32,7 +32,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
 
-  /* Threadit palette */
+  /* Twinish palette */
   --color-blossom: var(--blossom);
   --color-fawn: var(--fawn);
   --color-maize: var(--maize);

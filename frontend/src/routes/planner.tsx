@@ -9,16 +9,16 @@ import { dayColor } from "@/lib/palette";
 export const Route = createFileRoute("/planner")({
   head: () => ({
     meta: [
-      { title: "Outfits of the Week · Threadit" },
+      { title: "Outfits of the Week · Twinish" },
       {
         name: "description",
         content:
           "A seven-day colour-coded grid of what you're wearing. Fill empty days from your saved looks and rate the ones you've worn.",
       },
-      { property: "og:title", content: "Outfits of the Week · Threadit" },
+      { property: "og:title", content: "Outfits of the Week · Twinish" },
       {
         property: "og:description",
-        content: "Plan the week, rate the looks, let Threadit learn what you actually reach for.",
+        content: "Plan the week, rate the looks, let Twinish learn what you actually reach for.",
       },
     ],
   }),
@@ -131,7 +131,7 @@ function Planner() {
       </section>
 
       <p className="handwritten mt-4 text-center text-xl text-foreground/70">
-        Stars teach Threadit what you actually reach for ⭐️
+        Stars teach Twinish what you actually reach for ⭐️
       </p>
 
       {picking !== null && (

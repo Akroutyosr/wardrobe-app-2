@@ -191,7 +191,7 @@ type RawOutfit = { id: string; item_ids: string[]; reasoning?: string };
  * same display shape generateOutfits produces. Returns undefined if the
  * id isn't found or the backend is unreachable.
  */
-export async function fetchOutfit(id: string): Promise<Outfit | undefined> {
+export async function fetchOutfit(id: string): Promise<Outfit | null> {
   try {
     const known = await fetchItems();
     const raw = await fetchJson<RawOutfit>(`/api/outfits/${encodeURIComponent(id)}`);
@@ -204,7 +204,9 @@ export async function fetchOutfit(id: string): Promise<Outfit | undefined> {
         .join(" · ") || `Look ${raw.id}`;
     return { id: raw.id, title, caption: raw.reasoning ?? "", items };
   } catch {
-    return undefined;
+    // Not found or unreachable backend — null (not undefined, which React
+    // Query v5 rejects) so the caller can fall back to the deck / not-found.
+    return null;
   }
 }
 

@@ -78,13 +78,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Threadit — your closet, but make it a game" },
+      { title: "Twinish — your closet, but make it a game" },
       {
         name: "description",
         content:
-          "Threadit turns the clothes you already own into outfits you'll actually wear — colour-coded, scored and streaked.",
+          "Twinish turns the clothes you already own into outfits you'll actually wear — colour-coded, scored and streaked.",
       },
-      { property: "og:title", content: "Threadit — your closet, but make it a game" },
+      { property: "og:title", content: "Twinish — your closet, but make it a game" },
       {
         property: "og:description",
         content: "See your clothes as outfit possibilities, not a pile of stuff.",
@@ -112,11 +112,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: browser extensions (Grammarly, etc.) inject
+    // attributes into <html>/<body> after SSR, which React would otherwise
+    // report as a hydration mismatch every load.
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Scripts />
       </body>
