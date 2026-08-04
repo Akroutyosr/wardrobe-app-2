@@ -1,18 +1,43 @@
 """
-SQLite storage for structured wardrobe item fields. Replaces the flat
-wardrobe.json from Phase 1 now that the tagging pipeline is trustworthy.
+Postgres (Supabase) storage for structured wardrobe item fields, replacing
+the SQLite layer. The embeddings live in the same database's items.embedding
+column (pgvector), so there's one system of record instead of two in sync.
+
+The connection string comes from the DATABASE_URL environment variable
+(see backend/.env) — a managed connection string that also keeps the backend
+deployment-host-agnostic. Copy backend/.env.example to backend/.env and set it,
+then run the one-time migration:
+
+    python -m app.scripts.migrate_to_postgres
+
+Usage from the backend/ directory:
+    uvicorn app.main:app --reload --port 8000
 """
 
 import json
-import sqlite3
+import os
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]  # backend/
-DB_PATH = REPO_ROOT / "data" / "wardrobe.db"
+import psycopg
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Embeds the wardrobe items (Parent-child to the API items shape).
+EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 (Chroma default embedding function)
+
+# Explicit column list (NOT `*`) so the heavy embeddings column is excluded
+# from API-facing reads by default.
+ITEM_COLUMNS = (
+    "id, image_path, category, subcategory, primary_color, secondary_color, "
+    "pattern, formality, seasons, fabric_guess, notes, brand, price, "
+    "purchase_date, created_at"
+)
 
 SCHEMA = """
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS items (
     id TEXT PRIMARY KEY,
     image_path TEXT,
@@ -22,22 +47,26 @@ CREATE TABLE IF NOT EXISTS items (
     secondary_color TEXT,
     pattern TEXT,
     formality INTEGER,
-    seasons TEXT,        -- JSON array as text
+    seasons TEXT,            -- JSON array as text
     fabric_guess TEXT,
     notes TEXT,
     brand TEXT,
-    price REAL,
+    price DOUBLE PRECISION,
     purchase_date TEXT,
-    created_at TEXT
+    created_at TEXT,
+    embedding vector(384)
 );
 
 -- Hard guard against unwitting duplicate ingestion: each photo may be the
--- row for at most one item. Applied automatically by init_db() on the next
--- run; existing data is already deduped so nothing conflicts.
+-- row for at most one item.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_items_image_path ON items(image_path);
 
+-- Similarity search index (L2). A brute-force scan is fine at this size,
+-- so add an HNSW index if the wardrobe grows large.
+CREATE INDEX IF NOT EXISTS idx_items_embedding ON items USING hnsw (embedding vector_l2_ops);
+
 CREATE TABLE IF NOT EXISTS wear_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     item_id TEXT REFERENCES items(id),
     worn_on TEXT,
     outfit_id TEXT,
@@ -59,18 +88,41 @@ CREATE TABLE IF NOT EXISTS generated_outfits (
 """
 
 
-def get_connection() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def _conninfo() -> str:
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Create a Supabase project, grab the "
+            "connection string, and add it to backend/.env "
+            "(copy backend/.env.example → backend/.env). Then run "
+            "`python -m app.scripts.migrate_to_postgres` once."
+        )
+    if "sslmode" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslmode=require"
+    return url
+
+
+def get_connection():
+    """Open a new Postgres connection with dict-style rows."""
+    return psycopg.connect(_conninfo(), row_factory=psycopg.rows.dict_row)
 
 
 def init_db() -> None:
     conn = get_connection()
-    conn.executescript(SCHEMA)
+    # psycopg3 only sends multi-statement scripts through the simple protocol;
+    # run each statement individually to be safe. The schema contains no
+    # semicolons inside string literals, so splitting on ';' is safe.
+    for statement in (s.strip() for s in SCHEMA.split(";") if s.strip()):
+        conn.execute(statement)
     conn.commit()
     conn.close()
+
+
+def _parse(item: dict) -> dict:
+    """Parse stored text columns into their real types."""
+    item["seasons"] = json.loads(item["seasons"] or "[]")
+    return item
 
 
 def add_item(image_path: str, tags: dict) -> dict:
@@ -79,7 +131,7 @@ def add_item(image_path: str, tags: dict) -> dict:
 
     conn = get_connection()
     existing = conn.execute(
-        "SELECT id, created_at FROM items WHERE image_path = ?", (image_path,)
+        "SELECT id, created_at FROM items WHERE image_path = %s", (image_path,)
     ).fetchone()
 
     if existing:
@@ -89,8 +141,9 @@ def add_item(image_path: str, tags: dict) -> dict:
         item_id = existing["id"]
         created_at = existing["created_at"]
         conn.execute(
-            """UPDATE items SET category=?, subcategory=?, primary_color=?, secondary_color=?,
-            pattern=?, formality=?, seasons=?, fabric_guess=?, notes=? WHERE id=?""",
+            """UPDATE items SET category=%s, subcategory=%s, primary_color=%s,
+            secondary_color=%s, pattern=%s, formality=%s, seasons=%s,
+            fabric_guess=%s, notes=%s WHERE id=%s""",
             (
                 tags.get("category"), tags.get("subcategory"), tags.get("primary_color"),
                 tags.get("secondary_color"), tags.get("pattern"), tags.get("formality"),
@@ -104,7 +157,7 @@ def add_item(image_path: str, tags: dict) -> dict:
             """INSERT INTO items
             (id, image_path, category, subcategory, primary_color, secondary_color,
              pattern, formality, seasons, fabric_guess, notes, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 item_id, image_path, tags.get("category"), tags.get("subcategory"),
                 tags.get("primary_color"), tags.get("secondary_color"), tags.get("pattern"),
@@ -136,45 +189,40 @@ def get_distinct_colors() -> list[str]:
     init_db()
     conn = get_connection()
     rows = conn.execute(
-        "SELECT DISTINCT primary_color FROM items WHERE primary_color IS NOT NULL "
+        "SELECT DISTINCT primary_color AS color FROM items WHERE primary_color IS NOT NULL "
         "UNION SELECT DISTINCT secondary_color FROM items WHERE secondary_color IS NOT NULL"
     ).fetchall()
     conn.close()
-    return sorted({row[0] for row in rows if row[0]})
+    return sorted({row["color"] for row in rows if row["color"]})
 
 
 def get_item(item_id: str) -> dict | None:
     conn = get_connection()
-    row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    row = conn.execute(
+        f"SELECT {ITEM_COLUMNS} FROM items WHERE id = %s", (item_id,)
+    ).fetchone()
     conn.close()
     if row is None:
         return None
-    result = dict(row)
-    result["seasons"] = json.loads(result["seasons"] or "[]")
-    return result
+    return _parse(dict(row))
 
 
 def list_items(category: str | None = None, season: str | None = None) -> list[dict]:
     init_db()
     conn = get_connection()
-    query = "SELECT * FROM items WHERE 1=1"
+    query = f"SELECT {ITEM_COLUMNS} FROM items WHERE 1=1"
     params = []
     if category:
-        query += " AND category = ?"
+        query += " AND category = %s"
         params.append(category)
     if season:
-        query += " AND seasons LIKE ?"
+        query += " AND seasons LIKE %s"
         params.append(f'%"{season}"%')
 
     rows = conn.execute(query, params).fetchall()
     conn.close()
 
-    results = []
-    for row in rows:
-        item = dict(row)
-        item["seasons"] = json.loads(item["seasons"] or "[]")
-        results.append(item)
-    return results
+    return [_parse(dict(row)) for row in rows]
 
 
 def log_outfit_wear(
@@ -193,7 +241,7 @@ def log_outfit_wear(
     conn = get_connection()
     for item_id in item_ids:
         conn.execute(
-            "INSERT INTO wear_log (item_id, worn_on, outfit_id, rating) VALUES (?, ?, ?, ?)",
+            "INSERT INTO wear_log (item_id, worn_on, outfit_id, rating) VALUES (%s, %s, %s, %s)",
             (item_id, worn_on, outfit_id, rating),
         )
     conn.commit()
@@ -211,29 +259,24 @@ def get_recent_rated_outfits(limit: int = 5) -> list[dict]:
     conn = get_connection()
     outfit_rows = conn.execute(
         """SELECT DISTINCT outfit_id, worn_on, rating FROM wear_log
-        ORDER BY worn_on DESC LIMIT ?""",
+        ORDER BY worn_on DESC LIMIT %s""",
         (limit,),
     ).fetchall()
 
     results = []
     for row in outfit_rows:
+        qualified = "i." + ITEM_COLUMNS.replace(", ", ", i.")
         item_rows = conn.execute(
-            """SELECT items.* FROM items
-            JOIN wear_log ON items.id = wear_log.item_id
-            WHERE wear_log.outfit_id = ?""",
+            f"""SELECT {qualified} FROM items i
+            JOIN wear_log w ON i.id = w.item_id
+            WHERE w.outfit_id = %s""",
             (row["outfit_id"],),
         ).fetchall()
-        items = []
-        for item_row in item_rows:
-            item = dict(item_row)
-            item["seasons"] = json.loads(item["seasons"] or "[]")
-            items.append(item)
-
         results.append({
             "outfit_id": row["outfit_id"],
             "worn_on": row["worn_on"],
             "rating": row["rating"],
-            "items": items,
+            "items": [_parse(dict(item_row)) for item_row in item_rows],
         })
 
     conn.close()
@@ -250,7 +293,7 @@ def save_generated_outfit(item_ids: list[str], reasoning: str, context: dict) ->
     conn.execute(
         """INSERT INTO generated_outfits
         (id, context_json, item_ids_json, reasoning, created_at, rating, worn_on)
-        VALUES (?, ?, ?, ?, ?, NULL, NULL)""",
+        VALUES (%s, %s, %s, %s, %s, NULL, NULL)""",
         (outfit_id, json.dumps(context), json.dumps(item_ids), reasoning, created_at),
     )
     conn.commit()
@@ -262,7 +305,7 @@ def get_generated_outfit(outfit_id: str) -> dict | None:
     init_db()
     conn = get_connection()
     row = conn.execute(
-        "SELECT * FROM generated_outfits WHERE id = ?", (outfit_id,)
+        "SELECT * FROM generated_outfits WHERE id = %s", (outfit_id,)
     ).fetchone()
     conn.close()
     if row is None:
@@ -280,12 +323,12 @@ def rate_generated_outfit(outfit_id: str, rating: int, worn_on: str | None = Non
     worn_on = worn_on or datetime.now(timezone.utc).date().isoformat()
     conn = get_connection()
     conn.execute(
-        "UPDATE generated_outfits SET rating = ?, worn_on = ? WHERE id = ?",
+        "UPDATE generated_outfits SET rating = %s, worn_on = %s WHERE id = %s",
         (rating, worn_on, outfit_id),
     )
     conn.commit()
     row = conn.execute(
-        "SELECT item_ids_json FROM generated_outfits WHERE id = ?", (outfit_id,)
+        "SELECT item_ids_json FROM generated_outfits WHERE id = %s", (outfit_id,)
     ).fetchone()
     conn.close()
     if row is None:

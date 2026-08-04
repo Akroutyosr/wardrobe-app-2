@@ -49,7 +49,7 @@ def main():
 
     corrected = review_and_correct(item)
     saved = ingest_item(image_path, corrected)
-    print(f"\nSaved item {saved['id']} to data/wardrobe.db (SQLite) + data/chroma/ (embeddings)")
+    print(f"\nSaved item {saved['id']} to Postgres (items.embedding for similarity)")
 
 
 if __name__ == "__main__":

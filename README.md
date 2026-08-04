@@ -59,10 +59,26 @@ locally and served from the backend; reads and writes hit the API.
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env    # then add GEMINI_API_KEY + DATABASE_URL
+```
+
+The backend now reads and writes **Supabase Postgres** (pgvector) instead of
+local SQLite + Chroma. Create a free Supabase project, enable the vector
+extension in the SQL editor (`CREATE EXTENSION IF NOT EXISTS vector;`), grab
+the connection string from Project Settings → Database, put it in `DATABASE_URL`
+in `backend/.env`, then run the one-time migration:
+
+```bash
+python -m app.scripts.migrate_to_postgres   # copies wardrobe.db + Chroma into Postgres
+```
+
+Then start the API:
+
+```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-Health check: `curl http://localhost:8000/api/health` → `{"status":"ok","items":95,…}`
+Health check: `curl http://localhost:8000/api/health` → `{"status":"ok","items":49,…}`
 Interactive docs: `http://localhost:8000/docs`
 
 **2. Point the frontend at it** (from `frontend/`):
@@ -84,11 +100,14 @@ Main API endpoints (see `backend/app/main.py`):
 |---|---|---|
 | GET | `/api/items` | list wardrobe (`?category=&season=`, frontend vocab) |
 | GET | `/api/items/{id}` | single item |
-| GET | `/api/items/{id}/similar` | embedding-similar items |
+| GET | `/api/items/{id}/similar` | embedding-similar items (pgvector) |
 | POST | `/api/outfits/generate` | RAG outfit generation (Gemini) |
+| GET | `/api/outfits/{id}` | one persisted outfit (deep-link) |
+| POST | `/api/outfits/{id}/rate` | rate a generated outfit |
 | POST | `/api/feedback` | log a worn outfit + rating (few-shot signal) |
+| GET | `/api/colors` | distinct wardrobe colors for filter chips |
 | POST | `/api/items/upload` | tag a photo without saving (review step) |
-| POST | `/api/items` | save a reviewed item (SQLite + Chroma) |
+| POST | `/api/items` | save a reviewed item (Postgres + pgvector) |
 | POST | `/api/should-i-buy` | shopping agent verdict (upload a photo) |
 | GET | `/photos/*` | served wardrobe photos (static) |
 

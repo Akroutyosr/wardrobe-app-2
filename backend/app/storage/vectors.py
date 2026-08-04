@@ -1,25 +1,15 @@
 """
-Embeddings + similarity search via Chroma, running fully locally (no API
-calls, no cost) using its bundled default embedding model.
+Embedding generation + similarity search via pgvector in Postgres, replacing
+the Chroma store. The embedding vectors live in the items.embedding column of
+the same Supabase database, so there's a single system of record.
+
+Embeddings are computed with the same local ONNX all-MiniLM-L6-v2 model Chroma
+used (see app.storage.embeddings), preserving vector continuity across the
+migration.
 """
 
-from pathlib import Path
-
-import chromadb
-
-REPO_ROOT = Path(__file__).resolve().parents[2]  # backend/
-CHROMA_DIR = REPO_ROOT / "data" / "chroma"
-
-_client = None
-_collection = None
-
-
-def _get_collection():
-    global _client, _collection
-    if _collection is None:
-        _client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-        _collection = _client.get_or_create_collection(name="wardrobe_items")
-    return _collection
+from app.storage.db import get_connection, get_item
+from app.storage.embeddings import embed_texts, to_vector_literal
 
 
 def item_to_text(tags: dict) -> str:
@@ -38,15 +28,35 @@ def item_to_text(tags: dict) -> str:
 
 
 def add_embedding(item_id: str, tags: dict) -> None:
-    collection = _get_collection()
     text = item_to_text(tags)
-    collection.upsert(ids=[item_id], documents=[text], metadatas=[{"category": tags.get("category", "")}])
+    vec = to_vector_literal(embed_texts([text])[0])
+    conn = get_connection()
+    conn.execute(
+        "UPDATE items SET embedding = %s::vector WHERE id = %s", (vec, item_id)
+    )
+    conn.commit()
+    conn.close()
 
 
 def find_similar(query_text: str, k: int = 5) -> list[dict]:
-    collection = _get_collection()
-    results = collection.query(query_texts=[query_text], n_results=k)
-    return [
-        {"item_id": id_, "text": doc, "distance": dist}
-        for id_, doc, dist in zip(results["ids"][0], results["documents"][0], results["distances"][0])
-    ]
+    """Nearest items by L2 distance over pgvector (<->)."""
+    q = to_vector_literal(embed_texts([query_text])[0])
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT id, embedding <-> %s::vector AS distance
+        FROM items WHERE embedding IS NOT NULL
+        ORDER BY embedding <-> %s::vector
+        LIMIT %s""",
+        (q, q, k),
+    ).fetchall()
+    conn.close()
+
+    results = []
+    for row in rows:
+        item = get_item(row["id"])
+        results.append({
+            "item_id": row["id"],
+            "text": item_to_text(item) if item else "",
+            "distance": row["distance"],
+        })
+    return results
