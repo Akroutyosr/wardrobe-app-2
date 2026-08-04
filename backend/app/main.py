@@ -11,6 +11,7 @@ Health check: GET http://localhost:8000/api/health
 Interactive docs: GET http://localhost:8000/docs
 """
 
+import os
 import shutil
 from pathlib import Path
 
@@ -53,10 +54,25 @@ class AddItemRequest(BaseModel):
 
 app = FastAPI(title="Digital Wardrobe Twin API", version="0.1.0")
 
-# Dev default: any origin. Tighten this once the frontend has a real host.
+def _cors_origins() -> list[str]:
+    """Allowed browser origins for the frontend. Set CORS_ORIGINS (comma-
+    separated) on the deployed backend, e.g. https://wardrobe.pages.dev; falls
+    back to local dev origins when unset."""
+    raw = os.environ.get("CORS_ORIGINS", "").strip()
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:8080",
+    ]
+
+
+# Tightened from a dev-only wildcard: only the local dev servers and any origin
+# listed in CORS_ORIGINS (deployed frontends) may call the API.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
