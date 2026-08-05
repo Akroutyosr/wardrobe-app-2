@@ -1,0 +1,18 @@
+# Workers config for the Cloudflare git-connected deploy of this Nitro/TanStack
+# Start frontend. Mirrors what Nitro's cloudflare-module preset generates inside
+# .output/server/wrangler.json, but at the build root so Cloudflare's Workers
+# git integration picks it up after `npm run build`.
+name = "twinish"
+compatibility_date = "2026-08-05"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+no_bundle = true
+main = ".output/server/index.mjs"
+
+[assets]
+binding = "ASSETS"
+directory = ".output/public"
+
+[[rules]]
+type = "ESModule"
+globs = ["**/*.mjs", "**/*.js"]

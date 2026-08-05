@@ -12,10 +12,4 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
-  // Deploy to Cloudflare Pages (git-connected, auto-rebuilds on push) instead of
-  // the scaffold's default Workers target. Emits .output/public/_worker.js so
-  // Pages can serve SSR.
-  nitro: {
-    preset: "cloudflare-pages",
-  },
 });
