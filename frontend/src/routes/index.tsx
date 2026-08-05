@@ -31,11 +31,12 @@ function Today() {
   const [printing, setPrinting] = useState(false);
   const [fire] = useState(0);
   const { data: closet } = useCloset();
-  const { data: outfits } = useOutfits();
+  const { data: outfits, isFetching } = useOutfits();
 
-  const outfit = outfits[index % outfits.length]!;
-  const items = itemsByIds(outfit.items, closet);
-  const extra = extraFor(outfit.id);
+  const deck = outfits ?? [];
+  const outfit = deck.length > 0 ? deck[index % deck.length] : null;
+  const items = outfit ? itemsByIds(outfit.items, closet) : [];
+  const extra = outfit ? extraFor(outfit.id) : null;
   const w = todayWeather;
   const leaderboard = [...closet].sort((a, b) => b.worn - a.worn).slice(0, 3);
 
@@ -49,6 +50,11 @@ function Today() {
 
   return (
     <div className="animate-float-in">
+      {!outfit && (
+        <div className="mb-4 rounded-3xl bg-muted px-5 py-6 text-center text-sm font-semibold text-muted-foreground">
+          {isFetching ? "Picking today's look…" : "No look available — try the Closet."}
+        </div>
+      )}
       <header className="mb-4 flex items-center justify-between">
         <div>
           <p className="display text-3xl">Twinish</p>
@@ -89,11 +95,12 @@ function Today() {
           </div>
         </div>
 
-        <div className="px-5 pb-5 pt-5">
-          <h1 className="display text-3xl">{w.temp}° and clear — here's your pick</h1>
+        {outfit && (
+          <div className="px-5 pb-5 pt-5">
+            <h1 className="display text-3xl">{w.temp}° and clear — here's your pick</h1>
 
-          <div
-            key={outfit.id}
+            <div
+              key={outfit.id}
             className={`mt-4 grid grid-cols-2 gap-3 ${printing ? "opacity-0" : "animate-print"}`}
           >
             {items.map((item, i) => (
@@ -139,6 +146,7 @@ function Today() {
             </Link>
           </div>
         </div>
+        )}
       </section>
 
       {/* colour-blocked stat pills */}

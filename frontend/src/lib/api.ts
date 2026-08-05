@@ -20,10 +20,14 @@ export const API_BASE = import.meta.env["VITE_API_URL"] ?? DEFAULT_API_BASE;
 export const IMAGE_BASE = (url: string) => (url.startsWith("http") ? url : `${API_BASE}${url}`);
 
 const REQUEST_TIMEOUT_MS = 15_000;
+// Outfit generation runs the LLM pipeline server-side and can take well over a
+// minute on Render's free tier (plus occasional cold starts). It needs a much
+// larger window than the cheap reads.
+const GENERATE_TIMEOUT_MS = 180_000;
 
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchJson<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       ...init,
@@ -164,11 +168,15 @@ export async function generateOutfits(
   } = {},
 ): Promise<Outfit[]> {
   const known = await fetchItems();
-  const data = await fetchJson<{ outfits: ApiOutfit[] }>("/api/outfits/generate", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...ctx, notes: ctx.notes ?? "" }),
-  });
+  const data = await fetchJson<{ outfits: ApiOutfit[] }>(
+    "/api/outfits/generate",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...ctx, notes: ctx.notes ?? "" }),
+    },
+    GENERATE_TIMEOUT_MS,
+  );
   return data.outfits.map((o) => toOutfit(o, known));
 }
 
