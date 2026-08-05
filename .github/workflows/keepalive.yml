@@ -1,0 +1,17 @@
+name: keepalive
+
+# Render free-tier web services sleep after ~15 min without inbound traffic,
+# which makes the first visitor (or their image requests) wait 30-50s or fail.
+# This pings the health endpoint every 10 minutes to keep it warm.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: curl -fsS --max-time 60 https://wardrobe-app-2.onrender.com/api/health
