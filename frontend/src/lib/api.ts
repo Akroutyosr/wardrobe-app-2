@@ -9,7 +9,13 @@ import type { ClosetItem, Outfit } from "./closet-data";
  * backend isn't reachable, so the UI never looks broken during development.
  */
 
-export const API_BASE = import.meta.env["VITE_API_URL"] ?? "http://localhost:8000";
+/**
+ * Resolve the backend base URL. In production builds (Cloudflare Workers) the
+ * deployed backend is the default; local `npm run dev` keeps localhost:8000.
+ * VITE_API_URL (frontend/.env or CI env) still overrides both.
+ */
+const DEFAULT_API_BASE = import.meta.env.DEV ? "http://localhost:8000" : "https://wardrobe-app-2.onrender.com";
+export const API_BASE = import.meta.env["VITE_API_URL"] ?? DEFAULT_API_BASE;
 
 export const IMAGE_BASE = (url: string) => (url.startsWith("http") ? url : `${API_BASE}${url}`);
 
