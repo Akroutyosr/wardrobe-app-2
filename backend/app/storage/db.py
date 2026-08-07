@@ -335,3 +335,41 @@ def rate_generated_outfit(outfit_id: str, rating: int, worn_on: str | None = Non
         raise ValueError(f"No generated outfit with id {outfit_id}")
     item_ids = json.loads(row["item_ids_json"])
     log_outfit_wear(item_ids, rating, worn_on, outfit_id=outfit_id)
+
+
+def get_recent_outfit_deck(
+    context: dict, max_age_seconds: int = 15 * 60, limit: int = 4
+) -> list[dict]:
+    """LLM deck cache: returns the most recent batch of unrated generated outfits
+    for this exact context, so repeat /api/outfits/generate calls (e.g. the home
+    page) skip the slow Gemini round-trip. Empty list if none is fresh enough."""
+    init_db()
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT id, item_ids_json, reasoning, created_at
+               FROM generated_outfits
+               WHERE context_json::jsonb = %s::jsonb
+                 AND rating IS NULL
+                 AND (created_at::timestamptz) > now() - make_interval(secs => %s)
+               ORDER BY created_at DESC
+               LIMIT %s""",
+            (json.dumps(context, sort_keys=True), max_age_seconds, limit * 2),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        return []
+    # The persistence writes a whole deck in one call, so every outfit in a batch
+    # shares the same created_at — take only that newest cohort.
+    newest = rows[0]["created_at"]
+    batch = [r for r in rows if r["created_at"] == newest]
+    return [
+        {
+            "id": r["id"],
+            "item_ids": json.loads(r["item_ids_json"]),
+            "reasoning": r["reasoning"],
+        }
+        for r in batch[:limit]
+    ]

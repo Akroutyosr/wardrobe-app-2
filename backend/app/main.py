@@ -17,7 +17,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.api import (
@@ -37,6 +37,7 @@ from app.storage.db import (
     get_distinct_colors,
     get_generated_outfit,
     get_item,
+    get_recent_outfit_deck,
     get_wear_counts,
     list_items,
     log_outfit_wear,
@@ -78,10 +79,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Wardrobe photos live under backend/data/photos — serve them as static files
-# so the frontend can point <img src> straight at them.
+# Wardrobe photos live under backend/data/photos — served with a long cache
+# header (filenames are content hashes for uploaded/ingested items) so browsers
+# and any CDN cache them instead of re-hitting the free-tier instance on every
+# page navigation.
 PHOTO_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/photos", StaticFiles(directory=str(PHOTO_DIR)), name="photos")
+
+
+@app.get("/photos/{name}")
+def photo(name: str) -> FileResponse:
+    path = PHOTO_DIR / Path(name).name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Photo not found")
+    media_type = "image/png" if path.suffix.lower() == ".png" else None
+    return FileResponse(
+        path,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400, immutable"},
+    )
 
 
 def _save_upload(upload: UploadFile) -> str:
@@ -160,13 +175,18 @@ def api_similar(item_id: str, k: int = 5) -> list[dict]:
 
 @app.post("/api/outfits/generate")
 def api_generate_outfits(req: OutfitRequest) -> dict:
-    shortlist = retrieve_candidates(req.to_context())
-    generated = generate_outfits(shortlist, req.to_context())
+    ctx = req.to_context()
+    # Reuse the last persisted deck for this exact context when it's fresh, so
+    # repeat visits (home page) skip the slow LLM round-trip.
+    deck = get_recent_outfit_deck(vars(ctx))
+    if not deck:
+        shortlist = retrieve_candidates(ctx)
+        deck = generate_outfits(shortlist, ctx)
     counts = get_wear_counts()
     return {
         "context": req.model_dump(exclude_none=True),
         "outfits": [
-            outfit_to_dto(outfit, i, counts) for i, outfit in enumerate(generated)
+            outfit_to_dto(outfit, i, counts) for i, outfit in enumerate(deck)
         ],
     }
 
