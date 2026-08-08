@@ -13,7 +13,7 @@ A personal app that turns your closet into a digital twin: every item tagged and
 
 ---
 
-## 2. Feature catalog
+## 2. Feature catalog:
 
 Organized by module, with a priority tier so scope creep has somewhere honest to go instead of derailing the current phase.
 
