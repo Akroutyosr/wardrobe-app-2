@@ -114,8 +114,8 @@ export async function fetchWeather(lat: number, lon: number): Promise<WeatherNow
 export function getLocation(): Promise<{ lat: number; lon: number }> {
   return new Promise((resolve) => {
     const fallback = {
-      lat: Number(import.meta.env.VITE_DEFAULT_LAT ?? 36.8),
-      lon: Number(import.meta.env.VITE_DEFAULT_LON ?? 10.18),
+      lat: Number(import.meta.env["VITE_DEFAULT_LAT"] ?? 36.8),
+      lon: Number(import.meta.env["VITE_DEFAULT_LON"] ?? 10.18),
     };
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       return resolve(fallback); // server render / unsupported browser

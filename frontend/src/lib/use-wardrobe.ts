@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ClosetItem, Outfit } from "./closet-data";
-import { closet, colors as fallbackColors, outfits as mockOutfits } from "./closet-data";
+import { closet, colors as fallbackColors } from "./closet-data";
 import { fetchColors, fetchItem, fetchItems, fetchOutfit, generateOutfits } from "./api";
 import { fetchWeather, getLocation } from "./weather";
 
@@ -33,7 +33,12 @@ export function useOutfits(ctx?: {
   season?: string;
   anchor_item_id?: string;
   notes?: string;
-}): { data: Outfit[]; isFetching: boolean; refetch: () => void } {
+}): {
+  data: Outfit[];
+  isFetching: boolean;
+  error: unknown;
+  refetch: () => void;
+} {
   const query = useQuery({
     queryKey: [
       "outfits",
@@ -43,17 +48,13 @@ export function useOutfits(ctx?: {
       ctx?.notes ?? "",
     ],
     queryFn: () => generateOutfits(ctx),
-    // placeholderData (NOT initialData): shows the mock deck while the real
-    // generation loads, but never marks the query fresh — otherwise staleTime
-    // would skip the real fetch entirely and we'd be stuck on mock outfit ids
-    // that don't match the real closet, rendering empty item cards.
-    placeholderData: mockOutfits,
     staleTime: 10 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
   return {
-    data: query.data as Outfit[],
+    data: (query.data ?? []) as Outfit[],
     isFetching: query.isFetching,
+    error: query.error,
     refetch: () => {
       void query.refetch();
     },

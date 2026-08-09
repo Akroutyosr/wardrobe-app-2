@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { Shuffle, ArrowRight, Flame, Trophy } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Shuffle, ArrowRight, Flame, Trophy, Loader2 } from "lucide-react";
 import { extraFor } from "@/lib/twinish-data";
 import { useCloset, useOutfits, useWeather, itemsByIds } from "@/lib/use-wardrobe";
 import { weatherEmoji } from "@/lib/weather";
@@ -27,6 +27,41 @@ export const Route = createFileRoute("/")({
   component: Today,
 });
 
+function DeckLoading() {
+  const steps = [
+    "Reading your closet…",
+    "Checking today's weather…",
+    "Consulting the AI stylist…",
+    "Polishing the final look…",
+  ];
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setStep((s) => (s + 1) % steps.length), 3000);
+    return () => clearInterval(t);
+  }, [steps.length]);
+  return (
+    <div className="mb-4 rounded-4xl bg-card shadow-lift">
+      <div className="flex items-center gap-3 px-5 pb-4 pt-5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose/10">
+          <Loader2 className="animate-spin text-rose" size={20} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-extrabold text-foreground">Picking today's look…</p>
+          <p className="truncate text-xs font-semibold text-muted-foreground">{steps[step]}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 px-5 pb-5">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="aspect-square animate-pulse rounded-3xl bg-muted" />
+        ))}
+      </div>
+      <p className="pb-4 pt-3 text-center text-[0.65rem] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+        AI styling takes a minute — hang tight
+      </p>
+    </div>
+  );
+}
+
 function currentSeason(d: Date = new Date()): string {
   const month = d.getMonth() + 1;
   if (month >= 3 && month <= 5) return "spring";
@@ -43,7 +78,12 @@ function Today() {
   const { data: weather } = useWeather();
   // Pass the live weather into the LLM deck so the generated outfits and their
   // reasoning actually reflect today's real conditions.
-  const { data: outfits, isFetching } = useOutfits(
+  const {
+    data: outfits,
+    isFetching,
+    error,
+    refetch,
+  } = useOutfits(
     weather
       ? {
           occasion: "casual",
@@ -55,6 +95,8 @@ function Today() {
 
   const deck = outfits ?? [];
   const outfit = deck.length > 0 ? deck[index % deck.length] : null;
+  const loadingDeck = !outfit && (isFetching || !weather);
+
   const items = outfit ? itemsByIds(outfit.items, closet) : [];
   const extra = outfit ? extraFor(outfit.id) : null;
   const temp = weather?.temperature;
@@ -77,11 +119,25 @@ function Today() {
 
   return (
     <div className="animate-float-in">
-      {!outfit && (
-        <div className="mb-4 rounded-3xl bg-muted px-5 py-6 text-center text-sm font-semibold text-muted-foreground">
-          {isFetching ? "Picking today's look…" : "No look available — try the Closet."}
+      {loadingDeck ? (
+        <DeckLoading />
+      ) : !outfit ? (
+        <div className="mb-4 rounded-3xl bg-muted px-5 py-6 text-center">
+          <p className="text-sm font-semibold text-muted-foreground">
+            {error
+              ? "Couldn't build a look right now."
+              : "No look available yet — add clothes in the Closet first."}
+          </p>
+          {error ? (
+            <button
+              onClick={() => refetch()}
+              className="tappable mt-3 rounded-full bg-rose px-4 py-2 text-xs font-extrabold text-primary-foreground"
+            >
+              Try again
+            </button>
+          ) : null}
         </div>
-      )}
+      ) : null}
       <header className="mb-4 flex items-center justify-between">
         <div>
           <p className="display text-3xl">Twinish</p>
@@ -158,7 +214,7 @@ function Today() {
             </div>
 
             <p className="handwritten mt-4 text-[1.25rem] leading-snug text-foreground/75">
-              “{extra.handNote}”
+              “{extra?.handNote}”
             </p>
 
             <div className="mt-4 flex gap-2">
