@@ -72,6 +72,10 @@ export function useOutfit(id: string) {
     queryFn: () => fetchOutfit(id),
     staleTime: 5 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
+    // The deep-link fetch can hit Render's cold start; retry briefly instead
+    // of instantly settling to "not found".
+    retry: 2,
+    retryDelay: (attempt) => attempt * 1500 + 1000,
   });
 }
 

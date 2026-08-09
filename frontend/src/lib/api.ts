@@ -14,7 +14,9 @@ import type { ClosetItem, Outfit } from "./closet-data";
  * deployed backend is the default; local `npm run dev` keeps localhost:8000.
  * VITE_API_URL (frontend/.env or CI env) still overrides both.
  */
-const DEFAULT_API_BASE = import.meta.env.DEV ? "http://localhost:8000" : "https://wardrobe-app-2.onrender.com";
+const DEFAULT_API_BASE = import.meta.env.DEV
+  ? "http://localhost:8000"
+  : "https://wardrobe-app-2.onrender.com";
 export const API_BASE = import.meta.env["VITE_API_URL"] ?? DEFAULT_API_BASE;
 
 export const IMAGE_BASE = (url: string) => (url.startsWith("http") ? url : `${API_BASE}${url}`);
@@ -25,7 +27,11 @@ const REQUEST_TIMEOUT_MS = 15_000;
 // larger window than the cheap reads.
 const GENERATE_TIMEOUT_MS = 180_000;
 
-async function fetchJson<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+async function fetchJson<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -208,7 +214,13 @@ type RawOutfit = { id: string; item_ids: string[]; reasoning?: string };
 export async function fetchOutfit(id: string): Promise<Outfit | null> {
   try {
     const known = await fetchItems();
-    const raw = await fetchJson<RawOutfit>(`/api/outfits/${encodeURIComponent(id)}`);
+    // Deep-link fetches can hit Render's cold start, so give this a wide
+    // window (same as generation) before giving up.
+    const raw = await fetchJson<RawOutfit>(
+      `/api/outfits/${encodeURIComponent(id)}`,
+      undefined,
+      GENERATE_TIMEOUT_MS,
+    );
     const byId = new Map(known.map((i) => [i.id, i]));
     const items = raw.item_ids.filter((iid) => byId.has(iid));
     const title =

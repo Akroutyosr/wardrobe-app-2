@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, Loader2, Star } from "lucide-react";
 import { extraFor } from "@/lib/twinish-data";
 import { useCloset, useOutfits, useOutfit, itemsByIds } from "@/lib/use-wardrobe";
 import { rateOutfit } from "@/lib/api";
@@ -27,7 +27,7 @@ function LookPage() {
   const { outfitId } = Route.useLoaderData();
   const { data: closet } = useCloset();
   const { data: deck } = useOutfits();
-  const { data: fetched } = useOutfit(outfitId);
+  const { data: fetched, isFetching } = useOutfit(outfitId);
   const outfit = fetched ?? deck.find((o) => o.id === outfitId);
   const items = itemsByIds(outfit?.items ?? [], closet);
   const extra = extraFor(outfitId);
@@ -42,6 +42,25 @@ function LookPage() {
   };
 
   const activeItem = items[active] ?? items[0];
+
+  if (!outfit && isFetching) {
+    return (
+      <div className="animate-float-in">
+        <Link
+          to="/planner"
+          className="tappable mb-4 inline-flex items-center gap-1.5 rounded-full bg-card px-4 py-2 text-xs font-bold uppercase tracking-widest shadow-polaroid"
+        >
+          <ArrowLeft size={15} /> Week
+        </Link>
+        <section className="paper rounded-3xl p-8 text-center">
+          <p className="display text-2xl">Fetching that look…</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Pulling it from your wardrobe — one moment.
+          </p>
+        </section>
+      </div>
+    );
+  }
 
   if (!outfit) {
     return (
