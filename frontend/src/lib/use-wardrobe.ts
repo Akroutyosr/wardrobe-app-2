@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ClosetItem, Outfit } from "./closet-data";
 import { closet, colors as fallbackColors, outfits as mockOutfits } from "./closet-data";
 import { fetchColors, fetchItem, fetchItems, fetchOutfit, generateOutfits } from "./api";
+import { fetchWeather, getLocation } from "./weather";
 
 /**
  * Shared wardrobe state for the Phase 6 wiring.
@@ -81,6 +82,23 @@ export function useColors() {
     placeholderData: fallbackColors,
     staleTime: 10 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Live weather for the Home screen. Runs only in the browser so the geolocation
+ * prompt is actually shown to the visitor (server renders the fallback coords
+ * from VITE_DEFAULT_LAT/LON instead).
+ */
+export function useWeather() {
+  return useQuery({
+    queryKey: ["weather"],
+    queryFn: async () => {
+      const { lat, lon } = await getLocation();
+      return fetchWeather(lat, lon);
+    },
+    enabled: typeof window !== "undefined",
+    staleTime: 15 * 60 * 1000, // weather doesn't need refetching every render
   });
 }
 

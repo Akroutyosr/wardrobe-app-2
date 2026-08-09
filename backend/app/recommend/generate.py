@@ -128,6 +128,11 @@ Compose 3-5 complete, coordinated outfits using color theory (avoid clashing
 bold patterns, balance formality across pieces) and the given context.
 Each outfit should reference 2-4 item ids. Give one short, warm sentence of
 reasoning per outfit explaining why it works.
+
+If the CONTEXT includes weather notes (e.g. "17°C and clear"), reference the
+real temperature and condition explicitly in the reasoning -- for example
+"keeps you cool on today's 17°C clear day". Concretely echo the number and
+the condition rather than vague phrasing like "great for warmer weather".
 """
 
 

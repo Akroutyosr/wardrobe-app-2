@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Shuffle, ArrowRight, Flame, Trophy } from "lucide-react";
-import { todayWeather, extraFor } from "@/lib/twinish-data";
-import { useCloset, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
+import { extraFor } from "@/lib/twinish-data";
+import { useCloset, useOutfits, useWeather, itemsByIds } from "@/lib/use-wardrobe";
+import { weatherEmoji } from "@/lib/weather";
 import { Confetti } from "@/components/Confetti";
 import { Callout } from "@/components/scrapbook";
 import { categoryColor } from "@/lib/palette";
@@ -26,18 +27,44 @@ export const Route = createFileRoute("/")({
   component: Today,
 });
 
+function currentSeason(d: Date = new Date()): string {
+  const month = d.getMonth() + 1;
+  if (month >= 3 && month <= 5) return "spring";
+  if (month >= 6 && month <= 8) return "summer";
+  if (month >= 9 && month <= 11) return "fall";
+  return "winter";
+}
+
 function Today() {
   const [index, setIndex] = useState(0);
   const [printing, setPrinting] = useState(false);
   const [fire] = useState(0);
   const { data: closet } = useCloset();
-  const { data: outfits, isFetching } = useOutfits();
+  const { data: weather } = useWeather();
+  // Pass the live weather into the LLM deck so the generated outfits and their
+  // reasoning actually reflect today's real conditions.
+  const { data: outfits, isFetching } = useOutfits(
+    weather
+      ? {
+          occasion: "casual",
+          season: currentSeason(),
+          notes: `${weather.temperature}°C and ${weather.condition.toLowerCase()}`,
+        }
+      : undefined,
+  );
 
   const deck = outfits ?? [];
   const outfit = deck.length > 0 ? deck[index % deck.length] : null;
   const items = outfit ? itemsByIds(outfit.items, closet) : [];
   const extra = outfit ? extraFor(outfit.id) : null;
-  const w = todayWeather;
+  const temp = weather?.temperature;
+  const condition = weather ? weather.condition : "Checking the sky…";
+  const emoji = weather ? weatherEmoji(weather.weatherCode) : "🔮";
+  const today = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
   const leaderboard = [...closet].sort((a, b) => b.worn - a.worn).slice(0, 3);
 
   const shuffle = () => {
@@ -59,7 +86,7 @@ function Today() {
         <div>
           <p className="display text-3xl">Twinish</p>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Sunday 2 August
+            {today}
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-rose px-3.5 py-2 text-sm font-extrabold text-primary-foreground shadow-lift">
@@ -74,18 +101,18 @@ function Today() {
         <div className="bg-gradient-to-b from-sky to-sky/70 px-5 pb-6 pt-7 text-white">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-6xl font-extrabold leading-none">{w.temp}°</p>
+              <p className="text-6xl font-extrabold leading-none">{temp ?? "…"}°</p>
               <p className="mt-1.5 text-sm font-semibold opacity-95">
-                {w.emoji} {w.condition}
+                {emoji} {condition}
               </p>
             </div>
             <p className="pt-2 text-xs font-semibold opacity-90">
-              H:{w.high}° L:{w.low}°
+              H:{weather?.high ?? "–"}° L:{weather?.low ?? "–"}°
             </p>
           </div>
 
           <div className="mt-5 flex justify-between rounded-2xl bg-white/25 px-3 py-3 backdrop-blur">
-            {w.hours.map((h) => (
+            {(weather?.hours ?? []).map((h) => (
               <div key={h.label} className="flex flex-col items-center gap-1">
                 <span className="text-[0.6rem] font-bold tracking-wider">{h.label}</span>
                 <span className="text-base">{h.emoji}</span>
@@ -97,55 +124,59 @@ function Today() {
 
         {outfit && (
           <div className="px-5 pb-5 pt-5">
-            <h1 className="display text-3xl">{w.temp}° and clear — here's your pick</h1>
+            <h1 className="display text-3xl">
+              {weather
+                ? `${weather.temperature}° and ${weather.condition.toLowerCase()} — here's your pick`
+                : "Today's forecast — here's your pick"}
+            </h1>
 
             <div
               key={outfit.id}
-            className={`mt-4 grid grid-cols-2 gap-3 ${printing ? "opacity-0" : "animate-print"}`}
-          >
-            {items.map((item, i) => (
-              <div key={item.id} className="relative">
-                <div className="tappable overflow-hidden rounded-3xl bg-muted shadow-polaroid">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    loading="lazy"
-                    className="aspect-square w-full object-cover"
-                  />
-                  <div className="flex items-center justify-between gap-1 px-2.5 py-2">
-                    <p className="truncate text-[0.72rem] font-bold leading-tight">{item.name}</p>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-wide text-ink ${categoryColor[item.category]}`}
-                    >
-                      {item.category}
-                    </span>
+              className={`mt-4 grid grid-cols-2 gap-3 ${printing ? "opacity-0" : "animate-print"}`}
+            >
+              {items.map((item, i) => (
+                <div key={item.id} className="relative">
+                  <div className="tappable overflow-hidden rounded-3xl bg-muted shadow-polaroid">
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      loading="lazy"
+                      className="aspect-square w-full object-cover"
+                    />
+                    <div className="flex items-center justify-between gap-1 px-2.5 py-2">
+                      <p className="truncate text-[0.72rem] font-bold leading-tight">{item.name}</p>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-wide text-ink ${categoryColor[item.category]}`}
+                      >
+                        {item.category}
+                      </span>
+                    </div>
                   </div>
+                  <Callout n={i + 1} className="absolute -left-2 -top-2" />
                 </div>
-                <Callout n={i + 1} className="absolute -left-2 -top-2" />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <p className="handwritten mt-4 text-[1.25rem] leading-snug text-foreground/75">
-            “{extra.handNote}”
-          </p>
+            <p className="handwritten mt-4 text-[1.25rem] leading-snug text-foreground/75">
+              “{extra.handNote}”
+            </p>
 
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={shuffle}
-              className="tappable flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose py-3.5 text-sm font-extrabold text-primary-foreground"
-            >
-              <Shuffle size={17} /> Shuffle my fit
-            </button>
-            <Link
-              to="/look/$outfitId"
-              params={{ outfitId: outfit.id }}
-              className="tappable flex items-center justify-center gap-1.5 rounded-2xl bg-maize px-4 text-sm font-extrabold text-ink"
-            >
-              See look <ArrowRight size={16} />
-            </Link>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={shuffle}
+                className="tappable flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose py-3.5 text-sm font-extrabold text-primary-foreground"
+              >
+                <Shuffle size={17} /> Shuffle my fit
+              </button>
+              <Link
+                to="/look/$outfitId"
+                params={{ outfitId: outfit.id }}
+                className="tappable flex items-center justify-center gap-1.5 rounded-2xl bg-maize px-4 text-sm font-extrabold text-ink"
+              >
+                See look <ArrowRight size={16} />
+              </Link>
+            </div>
           </div>
-        </div>
         )}
       </section>
 
