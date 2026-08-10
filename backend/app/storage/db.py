@@ -85,6 +85,16 @@ CREATE TABLE IF NOT EXISTS generated_outfits (
     rating INTEGER,
     worn_on TEXT
 );
+
+-- Style quiz answers: a cold-start signal for the stylist before real
+-- wear_log feedback accumulates. Every swipe appends one row.
+CREATE TABLE IF NOT EXISTS style_preferences (
+    id SERIAL PRIMARY KEY,
+    formality INTEGER,
+    pattern TEXT,
+    color_family TEXT,
+    created_at TEXT
+);
 """
 
 
@@ -401,3 +411,38 @@ def get_outfits_for_week(start_date: str, end_date: str) -> list[dict]:
         item["item_ids"] = json.loads(raw) if isinstance(raw, str) else raw
         results.append(item)
     return results
+
+
+def save_quiz_preference(formality: int, pattern: str, color_family: str) -> None:
+    init_db()
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO style_preferences (formality, pattern, color_family, created_at) VALUES (%s, %s, %s, %s)",
+        (formality, pattern, color_family, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_style_preference_summary() -> dict | None:
+    """Cold-start signal only -- meant to be used when real wear_log
+    history is sparse/empty, not to override real feedback once it exists."""
+    init_db()
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT formality, pattern, color_family FROM style_preferences"
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return None
+
+    from collections import Counter
+
+    formalities = [r["formality"] for r in rows]
+    patterns = [r["pattern"] for r in rows]
+    colors = [r["color_family"] for r in rows]
+    return {
+        "avg_formality": round(sum(formalities) / len(formalities), 1),
+        "preferred_pattern": Counter(patterns).most_common(1)[0][0],
+        "preferred_color_family": Counter(colors).most_common(1)[0][0],
+    }

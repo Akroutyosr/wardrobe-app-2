@@ -43,6 +43,7 @@ from app.storage.db import (
     list_items,
     log_outfit_wear,
     rate_generated_outfit,
+    save_quiz_preference,
 )
 from app.storage.ingest import ingest_item
 from app.storage.vectors import find_similar, item_to_text
@@ -213,6 +214,18 @@ def api_planner_week(start_date: str, end_date: str) -> dict:
         dto["rating"] = row.get("rating")
         outfits.append(dto)
     return {"outfits": outfits}
+
+
+class QuizPreferenceRequest(BaseModel):
+    formality: int
+    pattern: str
+    color_family: str
+
+
+@app.post("/api/quiz/preference")
+def api_quiz_preference(req: QuizPreferenceRequest):
+    save_quiz_preference(req.formality, req.pattern, req.color_family)
+    return {"status": "ok"}
 
 
 class RateOutfitRequest(BaseModel):

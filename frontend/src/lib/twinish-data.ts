@@ -147,56 +147,165 @@ export const initialWeek: PlannerDay[] = [
   { day: "Sat", date: 8, outfitId: null, rating: null },
 ];
 
-/** Style quiz: this-or-that pairs built from closet photos. */
+/** Style quiz: this-or-that pairs built from closet photos.
+ * Each side carries controlled style metadata (schema.py's Pattern set and
+ * formality 1-5) that is posted to /api/quiz/preference when chosen. */
+export type QuizSide = {
+  itemId: string;
+  label: string;
+  trait: string;
+  formality: number;
+  pattern: string;
+  colorFamily: string;
+};
+
 export type QuizPair = {
   id: string;
   prompt: string;
-  left: { itemId: string; label: string; trait: string };
-  right: { itemId: string; label: string; trait: string };
+  left: QuizSide;
+  right: QuizSide;
 };
 
 export const quizPairs: QuizPair[] = [
   {
     id: "q1",
     prompt: "Saturday morning, you reach for…",
-    left: { itemId: "sweater", label: "Big cosy knit", trait: "soft" },
-    right: { itemId: "blazer", label: "Slouchy blazer", trait: "sharp" },
+    left: {
+      itemId: "sweater",
+      label: "Big cosy knit",
+      trait: "soft",
+      formality: 1,
+      pattern: "solid",
+      colorFamily: "cream",
+    },
+    right: {
+      itemId: "blazer",
+      label: "Slouchy blazer",
+      trait: "sharp",
+      formality: 3,
+      pattern: "solid",
+      colorFamily: "black",
+    },
   },
   {
     id: "q2",
     prompt: "Your shoe of choice today",
-    left: { itemId: "sneakers", label: "Crisp sneakers", trait: "easy" },
-    right: { itemId: "boots", label: "Chelsea boots", trait: "sharp" },
+    left: {
+      itemId: "sneakers",
+      label: "Crisp sneakers",
+      trait: "easy",
+      formality: 1,
+      pattern: "solid",
+      colorFamily: "white",
+    },
+    right: {
+      itemId: "boots",
+      label: "Chelsea boots",
+      trait: "sharp",
+      formality: 3,
+      pattern: "solid",
+      colorFamily: "black",
+    },
   },
   {
     id: "q3",
     prompt: "Colour mood",
-    left: { itemId: "dress", label: "Loud coral", trait: "bold" },
-    right: { itemId: "cardigan", label: "Quiet butter", trait: "soft" },
+    left: {
+      itemId: "dress",
+      label: "Loud coral",
+      trait: "bold",
+      formality: 2,
+      pattern: "solid",
+      colorFamily: "coral",
+    },
+    right: {
+      itemId: "cardigan",
+      label: "Quiet butter",
+      trait: "soft",
+      formality: 1,
+      pattern: "solid",
+      colorFamily: "butter",
+    },
   },
   {
     id: "q4",
     prompt: "Bottom half",
-    left: { itemId: "jeans", label: "Mom jeans", trait: "easy" },
-    right: { itemId: "skirt", label: "Pleated skirt", trait: "bold" },
+    left: {
+      itemId: "jeans",
+      label: "Mom jeans",
+      trait: "easy",
+      formality: 1,
+      pattern: "solid",
+      colorFamily: "denim",
+    },
+    right: {
+      itemId: "skirt",
+      label: "Pleated skirt",
+      trait: "bold",
+      formality: 2,
+      pattern: "checked",
+      colorFamily: "navy",
+    },
   },
   {
     id: "q5",
     prompt: "Finishing touch",
-    left: { itemId: "necklace", label: "Gold chain", trait: "sharp" },
-    right: { itemId: "bag", label: "Little crossbody", trait: "easy" },
+    left: {
+      itemId: "necklace",
+      label: "Gold chain",
+      trait: "sharp",
+      formality: 3,
+      pattern: "other",
+      colorFamily: "gold",
+    },
+    right: {
+      itemId: "bag",
+      label: "Little crossbody",
+      trait: "easy",
+      formality: 2,
+      pattern: "solid",
+      colorFamily: "brown",
+    },
   },
   {
     id: "q6",
     prompt: "Cold morning plan",
-    left: { itemId: "trench", label: "Wrap coat", trait: "sharp" },
-    right: { itemId: "sweater", label: "Double knit", trait: "soft" },
+    left: {
+      itemId: "trench",
+      label: "Wrap coat",
+      trait: "sharp",
+      formality: 4,
+      pattern: "solid",
+      colorFamily: "camel",
+    },
+    right: {
+      itemId: "sweater",
+      label: "Double knit",
+      trait: "soft",
+      formality: 1,
+      pattern: "striped",
+      colorFamily: "charcoal",
+    },
   },
   {
     id: "q7",
     prompt: "Everyday hero",
-    left: { itemId: "tee", label: "Striped tee", trait: "easy" },
-    right: { itemId: "dress", label: "Midi dress", trait: "bold" },
+    left: {
+      itemId: "tee",
+      label: "Striped tee",
+      trait: "easy",
+      formality: 1,
+      pattern: "striped",
+      colorFamily: "navy",
+    },
+    right: {
+      itemId: "dress",
+      label: "Midi dress",
+      trait: "bold",
+      formality: 3,
+      pattern: "floral",
+      colorFamily: "coral",
+    },
   },
 ];
 

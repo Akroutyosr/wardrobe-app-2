@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { byId } from "@/lib/closet-data";
-import { quizPairs, identities } from "@/lib/twinish-data";
+import { quizPairs, identities, type QuizSide } from "@/lib/twinish-data";
+import { API_BASE } from "@/lib/api";
 import { Confetti } from "@/components/Confetti";
 import { WashiTape, Barcode, DashRule } from "@/components/scrapbook";
 
@@ -29,9 +30,20 @@ function Quiz() {
 
   const pair = quizPairs[step];
 
-  const choose = (trait: string) => {
-    const next = { ...scores, [trait]: (scores[trait] ?? 0) + 1 };
+  const choose = (side: QuizSide) => {
+    const next = { ...scores, [side.trait]: (scores[side.trait] ?? 0) + 1 };
     setScores(next);
+    // Record the choice client-side first, then quietly persist it as a
+    // style-lean signal for the cold-start stylist. Never blocks the swipe.
+    void fetch(`${API_BASE}/api/quiz/preference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        formality: side.formality,
+        pattern: side.pattern,
+        color_family: side.colorFamily,
+      }),
+    }).catch(() => {});
     if (step === quizPairs.length - 1) setFire((f) => f + 1);
     setStep((s) => s + 1);
   };
@@ -59,7 +71,7 @@ function Quiz() {
               return (
                 <button
                   key={side.itemId + i}
-                  onClick={() => choose(side.trait)}
+                  onClick={() => choose(side)}
                   className="tappable polaroid p-2 text-left"
                   style={{ transform: `rotate(${i ? 2 : -2}deg)` }}
                 >

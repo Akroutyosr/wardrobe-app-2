@@ -103,6 +103,17 @@ def _build_prompt(shortlist: list[dict], context: OutfitContext) -> str:
                 "of items where possible, rather than reassembling the exact "
                 "same pieces):\n" + "\n".join(lines)
             )
+    else:
+        # Cold start: no real wear history yet, fall back to quiz signal if present
+        from app.storage.db import get_style_preference_summary
+        prefs = get_style_preference_summary()
+        if prefs:
+            feedback_desc = (
+                f"\n\nNo wear history yet, but the user's style quiz suggests a lean toward "
+                f"formality ~{prefs['avg_formality']}, {prefs['preferred_pattern']} patterns, "
+                f"and {prefs['preferred_color_family']} tones. Use this as a loose starting "
+                f"signal, not a hard rule."
+            )
 
     return f"""You are a personal stylist. Here is a shortlist of REAL clothing
 items the person actually owns -- you may ONLY reference items by the exact
