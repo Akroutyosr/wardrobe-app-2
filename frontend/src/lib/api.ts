@@ -186,6 +186,21 @@ export async function generateOutfits(
   return data.outfits.map((o) => toOutfit(o, known));
 }
 
+/** A week-plan row: an outfit DTO plus the day it maps to and its rating. */
+export type PlannerOutfit = ApiOutfit & {
+  date: string;
+  rating: number | null;
+};
+
+export async function fetchPlannerWeek(
+  startDate: string,
+  endDate: string,
+): Promise<PlannerOutfit[]> {
+  const q = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  const data = await fetchJson<{ outfits: PlannerOutfit[] }>(`/api/planner/week?${q}`);
+  return data.outfits;
+}
+
 // --- Feedback ---------------------------------------------------------------
 
 /**

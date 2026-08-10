@@ -373,3 +373,31 @@ def get_recent_outfit_deck(
         }
         for r in batch[:limit]
     ]
+
+
+def get_outfits_for_week(start_date: str, end_date: str) -> list[dict]:
+    """Generated outfits whose wear day (worn_on if rated, else created_at)
+    falls within [start_date, end_date], returning at most one per day (the
+    most recently created) for the planner's day grid. YYYY-MM-DD strings."""
+    init_db()
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT DISTINCT ON (COALESCE(worn_on, created_at)::date)
+                      id, item_ids_json, reasoning, rating, worn_on, created_at,
+                      COALESCE(worn_on, created_at)::date AS day
+               FROM generated_outfits
+               WHERE COALESCE(worn_on, created_at)::date BETWEEN %s::date AND %s::date
+               ORDER BY COALESCE(worn_on, created_at)::date, created_at DESC""",
+            (start_date, end_date),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    results = []
+    for row in rows:
+        item = dict(row)
+        raw = item["item_ids_json"]
+        item["item_ids"] = json.loads(raw) if isinstance(raw, str) else raw
+        results.append(item)
+    return results

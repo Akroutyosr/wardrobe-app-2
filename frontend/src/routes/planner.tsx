@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { addDays, format, startOfWeek } from "date-fns";
 import { Plus, Star } from "lucide-react";
-import { initialWeek, type PlannerDay } from "@/lib/twinish-data";
 import { useCloset, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
-import { rateOutfit } from "@/lib/api";
+import { IMAGE_BASE, fetchPlannerWeek, rateOutfit } from "@/lib/api";
 import { dayColor } from "@/lib/palette";
 
 export const Route = createFileRoute("/planner")({
@@ -25,65 +26,133 @@ export const Route = createFileRoute("/planner")({
   component: Planner,
 });
 
+type PlannedItem = { id: string; name: string; image: string; category: string };
+
+type PlannerDay = {
+  iso: string;
+  label: string;
+  dateLabel: string;
+};
+
+function weekDays() {
+  const start = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(start, i);
+    return {
+      iso: format(d, "yyyy-MM-dd"),
+      label: format(d, "EEE"),
+      dateLabel: format(d, "d MMM"),
+    };
+  });
+}
+
 function Planner() {
-  const [week, setWeek] = useState<PlannerDay[]>(initialWeek);
-  const [picking, setPicking] = useState<number | null>(null);
-  const navigate = useNavigate();
+  const days = useMemo<PlannerDay[]>(weekDays, []);
   const { data: closet } = useCloset();
-  const { data: outfits } = useOutfits();
+  const { data: outfits } = useOutfits(); // current deck, for the "+" picker
+  const [picking, setPicking] = useState<number | null>(null);
+  const [local, setLocal] = useState<Record<string, { outfitId?: string; rating?: number }>>({});
+  const navigate = useNavigate();
+
+  const { data: weekRows, isLoading: weekLoading } = useQuery({
+    queryKey: ["planner/week", days[0]!.iso, days[6]!.iso],
+    queryFn: () => fetchPlannerWeek(days[0]!.iso, days[6]!.iso),
+    staleTime: 30 * 1000,
+  });
+
+  const rowsByDate = useMemo(() => new Map((weekRows ?? []).map((o) => [o.date, o])), [weekRows]);
+
+  const planFor = (
+    day: PlannerDay,
+  ): { id: string; title: string; items: PlannedItem[]; rating: number } | null => {
+    const localPick = local[day.iso];
+    const row = rowsByDate.get(day.iso);
+    const id = localPick?.outfitId ?? row?.id ?? null;
+    if (!id) return null;
+
+    if (row && row.id === id) {
+      return {
+        id: row.id,
+        title: row.title,
+        rating: localPick?.rating ?? row.rating ?? 0,
+        items: row.items.map((it) => ({
+          id: it.id,
+          name: it.name,
+          image: IMAGE_BASE(it.image),
+          category: it.category,
+        })),
+      };
+    }
+
+    const deckOutfit = outfits.find((o) => o.id === id);
+    if (!deckOutfit) return null;
+    return {
+      id: deckOutfit.id,
+      title: deckOutfit.title,
+      rating: localPick?.rating ?? 0,
+      items: itemsByIds(deckOutfit.items, closet).map((it) => ({
+        id: it.id,
+        name: it.name,
+        image: it.image,
+        category: it.category,
+      })),
+    };
+  };
 
   const fill = (dayIndex: number, outfitId: string) => {
-    setWeek((w) => w.map((d, i) => (i === dayIndex ? { ...d, outfitId } : d)));
+    setLocal((p) => ({ ...p, [days[dayIndex]!.iso]: { outfitId } }));
     setPicking(null);
   };
 
   const rate = (dayIndex: number, rating: number) => {
-    const fitted = week[dayIndex];
-    setWeek((w) => w.map((d, i) => (i === dayIndex ? { ...d, rating } : d)));
-    if (fitted?.outfitId) {
-      const outfit = outfits.find((o) => o.id === fitted.outfitId);
-      if (outfit) void rateOutfit(outfit.id, rating).catch(() => {});
-    }
+    const day = days[dayIndex]!; // dayIndex always < 7 here
+    const row = rowsByDate.get(day.iso);
+    const id = local[day.iso]?.outfitId ?? row?.id;
+    if (!id) return;
+    setLocal((p) => ({ ...p, [day.iso]: { ...p[day.iso], rating } }));
+    void rateOutfit(id, rating).catch(() => {});
   };
 
-  const planned = week.filter((d) => d.outfitId).length;
+  const planned = days.filter((d) => planFor(d) !== null).length;
 
   return (
     <div className="animate-float-in">
       <header className="mb-5">
         <h1 className="display text-4xl">Outfits of the Week</h1>
         <p className="mt-1 text-[0.7rem] font-bold uppercase tracking-[0.22em] text-muted-foreground">
-          {planned} of 7 days planned · aug 2–8
+          {planned} of 7 days planned · {days[0]!.dateLabel}–{days[6]!.dateLabel}
+          {weekRows === undefined && weekLoading ? " · loading…" : ""}
         </p>
       </header>
 
       <section className="grid grid-cols-2 gap-3">
-        {week.map((d, i) => {
-          const outfit = d.outfitId ? outfits.find((o) => o.id === d.outfitId) : undefined;
-          const items = outfit ? itemsByIds(outfit.items, closet).slice(0, 4) : [];
+        {days.map((day, i) => {
+          const plan = planFor(day);
           return (
             <div
-              key={d.day}
+              key={day.iso}
               className={`rounded-3xl p-2.5 text-ink shadow-polaroid ${dayColor(i)} ${
                 i === 6 ? "col-span-2" : ""
               }`}
             >
               <div className="flex items-baseline justify-between px-1 pb-2">
-                <span className="text-sm font-extrabold uppercase tracking-widest">{d.day}</span>
-                <span className="font-mono text-[0.65rem] font-bold opacity-70">{d.date}</span>
+                <span className="text-sm font-extrabold uppercase tracking-widest">
+                  {day.label}
+                </span>
+                <span className="font-mono text-[0.65rem] font-bold opacity-70">
+                  {day.dateLabel}
+                </span>
               </div>
 
-              {outfit ? (
+              {plan ? (
                 <button
-                  onClick={() =>
-                    navigate({ to: "/look/$outfitId", params: { outfitId: outfit.id } })
-                  }
+                  onClick={() => navigate({ to: "/look/$outfitId", params: { outfitId: plan.id } })}
                   className="tappable block w-full"
                 >
                   <div
                     className={`grid gap-0.5 overflow-hidden rounded-2xl ${i === 6 ? "grid-cols-4" : "grid-cols-2"}`}
                   >
-                    {items.map((it) => (
+                    {plan.items.slice(0, 4).map((it) => (
                       <img
                         key={it.id}
                         src={it.image}
@@ -93,14 +162,12 @@ function Planner() {
                       />
                     ))}
                   </div>
-                  <p className="mt-1.5 truncate text-left text-[0.78rem] font-bold">
-                    {outfit.title}
-                  </p>
+                  <p className="mt-1.5 truncate text-left text-[0.78rem] font-bold">{plan.title}</p>
                 </button>
               ) : (
                 <button
                   onClick={() => setPicking(i)}
-                  aria-label={`Add an outfit for ${d.day}`}
+                  aria-label={`Add an outfit for ${day.label}`}
                   className={`tappable flex w-full items-center justify-center rounded-2xl bg-card/60 text-ink/60 ${
                     i === 6 ? "h-20" : "aspect-square"
                   }`}
@@ -113,14 +180,14 @@ function Planner() {
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
                     key={n}
-                    onClick={() => outfit && rate(i, n)}
-                    disabled={!outfit}
-                    aria-label={`Rate ${d.day} ${n} stars`}
+                    onClick={() => plan && rate(i, n)}
+                    disabled={!plan}
+                    aria-label={`Rate ${day.label} ${n} stars`}
                     className="disabled:opacity-30"
                   >
                     <Star
                       size={13}
-                      className={d.rating && n <= d.rating ? "fill-rose text-rose" : "text-ink/30"}
+                      className={plan && n <= plan.rating ? "fill-rose text-rose" : "text-ink/30"}
                     />
                   </button>
                 ))}

@@ -37,6 +37,7 @@ from app.storage.db import (
     get_distinct_colors,
     get_generated_outfit,
     get_item,
+    get_outfits_for_week,
     get_recent_outfit_deck,
     get_wear_counts,
     list_items,
@@ -197,6 +198,21 @@ def api_get_outfit(outfit_id: str) -> dict:
     if outfit is None:
         raise HTTPException(status_code=404, detail=f"No outfit with id {outfit_id}")
     return outfit
+
+
+@app.get("/api/planner/week")
+def api_planner_week(start_date: str, end_date: str) -> dict:
+    """Weekly Planner: generated outfits for [start_date, end_date], one per
+    day, resolved into the same DTO the deck endpoints return."""
+    rows = get_outfits_for_week(start_date, end_date)
+    counts = get_wear_counts()
+    outfits = []
+    for idx, row in enumerate(rows):
+        dto = outfit_to_dto(row, idx, counts)
+        dto["date"] = str(row["day"])
+        dto["rating"] = row.get("rating")
+        outfits.append(dto)
+    return {"outfits": outfits}
 
 
 class RateOutfitRequest(BaseModel):
