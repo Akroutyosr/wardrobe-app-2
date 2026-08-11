@@ -18,6 +18,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 import psycopg
 from dotenv import load_dotenv
@@ -32,7 +33,7 @@ EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 (Chroma default embedding function)
 ITEM_COLUMNS = (
     "id, image_path, category, subcategory, primary_color, secondary_color, "
     "pattern, formality, seasons, fabric_guess, notes, brand, price, "
-    "purchase_date, created_at"
+    "purchase_date, cutout_path, created_at"
 )
 
 SCHEMA = """
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS items (
     brand TEXT,
     price DOUBLE PRECISION,
     purchase_date TEXT,
+    cutout_path TEXT,
     created_at TEXT,
     embedding vector(384)
 );
@@ -98,6 +100,63 @@ CREATE TABLE IF NOT EXISTS style_preferences (
 """
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]  # backend/
+CUTOUT_DIR = REPO_ROOT / "data" / "cutouts"
+
+_cutout_session = None
+
+
+def _get_cutout_session():
+    """Lazy rembg session (loaded once, reused across all cutouts). Uses the
+    lite u2netp model by default -- small and fast, good enough for clothing
+    cutouts. Set U2NET_MODEL=u2net for the sharper full model."""
+    global _cutout_session
+    if _cutout_session is None:
+        from rembg.session_factory import new_session
+
+        _cutout_session = new_session(os.environ.get("U2NET_MODEL", "u2netp"))
+    return _cutout_session
+
+
+def generate_cutout(image_path: str) -> str:
+    """One-time background removal for an item photo, cached to disk so it is
+    never re-run on every render. Returns the stored relative cutout path."""
+    from PIL import Image
+    from rembg import remove
+
+    src = Path(image_path)
+    if not src.is_absolute():
+        src = REPO_ROOT / src
+    if not src.is_file():
+        # Stored paths may be absolute on a different host (Render vs local) --
+        # fall back to the canonical photos dir by basename.
+        src = REPO_ROOT / "data" / "photos" / Path(image_path).name
+    if not src.is_file():
+        raise FileNotFoundError(f"source photo missing: {src}")
+
+    cutout_filename = f"cutout_{src.stem}.png"
+    dest = CUTOUT_DIR / cutout_filename
+    if dest.is_file():
+        return f"data/cutouts/{cutout_filename}"
+
+    CUTOUT_DIR.mkdir(parents=True, exist_ok=True)
+    output = remove(Image.open(src), session=_get_cutout_session())
+    # The plate shows items at ~200px, so keep full-res cutouts off disk/repo:
+    # downscale to a sane max dimension and save optimized.
+    if max(output.size) > 1000:
+        output.thumbnail((1000, 1000), Image.Resampling.LANCZOS)
+    output.save(dest, optimize=True)
+    return f"data/cutouts/{cutout_filename}"
+
+
+def set_item_cutout(item_id: str, cutout_path: str) -> None:
+    init_db()
+    conn = get_connection()
+    conn.execute("UPDATE items SET cutout_path = %s WHERE id = %s", (cutout_path, item_id))
+    conn.commit()
+    conn.close()
+
+
 def _conninfo() -> str:
     url = os.environ.get("DATABASE_URL", "").strip()
     if not url:
@@ -115,18 +174,35 @@ def _conninfo() -> str:
 
 def get_connection():
     """Open a new Postgres connection with dict-style rows."""
-    return psycopg.connect(_conninfo(), row_factory=psycopg.rows.dict_row)
+    return psycopg.connect(
+        _conninfo(),
+        row_factory=psycopg.rows.dict_row,
+        connect_timeout=int(os.environ.get("DB_CONNECT_TIMEOUT", "8")),
+    )
+
+
+_schema_initialized = False
 
 
 def init_db() -> None:
+    """Ensure tables exist. Runs the full SCHEMA only once per process -- the
+    previous version re-executed it on every single query, which added many
+    slow round-trips to an already flaky connection. (Deploys restart the
+    process, so live migrations still apply on boot.)"""
+    global _schema_initialized
+    if _schema_initialized:
+        return
     conn = get_connection()
-    # psycopg3 only sends multi-statement scripts through the simple protocol;
-    # run each statement individually to be safe. The schema contains no
-    # semicolons inside string literals, so splitting on ';' is safe.
-    for statement in (s.strip() for s in SCHEMA.split(";") if s.strip()):
-        conn.execute(statement)
-    conn.commit()
-    conn.close()
+    try:
+        for statement in (s.strip() for s in SCHEMA.split(";") if s.strip()):
+            conn.execute(statement)
+        # CREATE TABLE IF NOT EXISTS won't add a column to an already-existing
+        # items table, so migrate live tables explicitly (Postgres supports this).
+        conn.execute("ALTER TABLE items ADD COLUMN IF NOT EXISTS cutout_path TEXT")
+        conn.commit()
+    finally:
+        conn.close()
+    _schema_initialized = True
 
 
 def _parse(item: dict) -> dict:

@@ -18,6 +18,7 @@ export type ClosetItem = {
   id: string;
   name: string;
   image: string;
+  cutout?: string;
   category: Category;
   color: string;
   season: Season[];

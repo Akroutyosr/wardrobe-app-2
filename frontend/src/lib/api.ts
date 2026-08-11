@@ -53,6 +53,7 @@ export type ApiItem = {
   id: string;
   name: string;
   image: string;
+  cutout?: string;
   category: string;
   color: string;
   primary_color: string;
@@ -118,6 +119,7 @@ export function toClosetItem(a: ApiItem): ClosetItem {
     id: a.id,
     name: a.name,
     image: IMAGE_BASE(a.image),
+    ...(a.cutout ? { cutout: IMAGE_BASE(a.cutout) } : {}),
     category: a.category as ClosetItem["category"],
     color: a.color,
     season: a.seasons as ClosetItem["season"],

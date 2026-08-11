@@ -15,12 +15,15 @@ import os
 import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+import psycopg
+
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api import (
+    CUTOUT_DIR,
     PHOTO_DIR,
     FeedbackRequest,
     FRONTEND_TO_CATEGORY,
@@ -56,6 +59,16 @@ class AddItemRequest(BaseModel):
     tags: ClothingItem
 
 app = FastAPI(title="Digital Wardrobe Twin API", version="0.1.0")
+
+
+@app.exception_handler(psycopg.OperationalError)
+async def _db_unreachable(_request: Request, exc: psycopg.OperationalError):
+    """Database egress is down (e.g. the Supabase pooler is unreachable). Fail
+    fast with a clean 503 instead of crashing the request with a traceback."""
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "The wardrobe database is unreachable right now. Try again in a moment."},
+    )
 
 def _cors_origins() -> list[str]:
     """Allowed browser origins for the frontend. Set CORS_ORIGINS (comma-
@@ -97,6 +110,18 @@ def photo(name: str) -> FileResponse:
     return FileResponse(
         path,
         media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400, immutable"},
+    )
+
+
+@app.get("/cutouts/{name}")
+def cutout(name: str) -> FileResponse:
+    path = CUTOUT_DIR / Path(name).name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Cutout not found")
+    return FileResponse(
+        path,
+        media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400, immutable"},
     )
 

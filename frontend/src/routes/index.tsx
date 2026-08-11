@@ -5,8 +5,7 @@ import { extraFor } from "@/lib/twinish-data";
 import { useCloset, useOutfits, useWeather, itemsByIds } from "@/lib/use-wardrobe";
 import { weatherEmoji } from "@/lib/weather";
 import { Confetti } from "@/components/Confetti";
-import { Callout } from "@/components/scrapbook";
-import { categoryColor } from "@/lib/palette";
+import { PlateCard } from "@/components/plate";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -72,7 +71,6 @@ function currentSeason(d: Date = new Date()): string {
 
 function Today() {
   const [index, setIndex] = useState(0);
-  const [printing, setPrinting] = useState(false);
   const [fire] = useState(0);
   const { data: closet } = useCloset();
   const { data: weather } = useWeather();
@@ -109,13 +107,7 @@ function Today() {
   }).format(new Date());
   const leaderboard = [...closet].sort((a, b) => b.worn - a.worn).slice(0, 3);
 
-  const shuffle = () => {
-    setPrinting(true);
-    setTimeout(() => {
-      setIndex((i) => i + 1);
-      setPrinting(false);
-    }, 220);
-  };
+  const shuffle = () => setIndex((i) => i + 1);
 
   return (
     <div className="animate-float-in">
@@ -180,38 +172,11 @@ function Today() {
 
         {outfit && (
           <div className="px-5 pb-5 pt-5">
-            <h1 className="display text-3xl">
-              {weather
-                ? `${weather.temperature}° and ${weather.condition.toLowerCase()} — here's your pick`
-                : "Today's forecast — here's your pick"}
-            </h1>
-
-            <div
+            <PlateCard
               key={outfit.id}
-              className={`mt-4 grid grid-cols-2 gap-3 ${printing ? "opacity-0" : "animate-print"}`}
-            >
-              {items.map((item, i) => (
-                <div key={item.id} className="relative">
-                  <div className="tappable overflow-hidden rounded-3xl bg-muted shadow-polaroid">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      loading="lazy"
-                      className="aspect-square w-full object-cover"
-                    />
-                    <div className="flex items-center justify-between gap-1 px-2.5 py-2">
-                      <p className="truncate text-[0.72rem] font-bold leading-tight">{item.name}</p>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-wide text-ink ${categoryColor[item.category]}`}
-                      >
-                        {item.category}
-                      </span>
-                    </div>
-                  </div>
-                  <Callout n={i + 1} className="absolute -left-2 -top-2" />
-                </div>
-              ))}
-            </div>
+              label={weather ? `${today} · ${weather.condition.toLowerCase()}` : today}
+              items={items}
+            />
 
             <p className="handwritten mt-4 text-[1.25rem] leading-snug text-foreground/75">
               “{extra?.handNote}”

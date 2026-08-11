@@ -17,6 +17,7 @@ from app.recommend.context import OutfitContext
 from app.storage.db import get_item, get_wear_counts
 
 PHOTO_DIR = Path(__file__).resolve().parents[1] / "data" / "photos"
+CUTOUT_DIR = Path(__file__).resolve().parents[1] / "data" / "cutouts"
 
 CATEGORY_TO_FRONTEND = {
     "top": "tops",
@@ -113,6 +114,19 @@ def item_image_url(item: dict) -> str:
     return ""
 
 
+def item_cutout_url(item: dict) -> str:
+    """Resolve an item's transparent cutout to a servable URL. The filename is
+    derived deterministically from the source photo (cutout_<photo-stem>.png),
+    so cutouts render even before the cutout_path column is backfilled."""
+    raw = item.get("image_path") or ""
+    if not raw:
+        return ""
+    cutout_name = f"cutout_{Path(raw).stem}.png"
+    if (CUTOUT_DIR / cutout_name).exists():
+        return f"/cutouts/{cutout_name}"
+    return ""
+
+
 def item_to_dto(item: dict) -> dict:
     """Backend item row -> frontend ClosetItem-shaped JSON."""
     category = item.get("category", "")
@@ -127,6 +141,7 @@ def item_to_dto(item: dict) -> dict:
         "id": item_id,
         "name": name,
         "image": item_image_url(item),
+        "cutout": item_cutout_url(item),
         "category": CATEGORY_TO_FRONTEND.get(category, category),
         "color": normalize_color(primary_color),
         "primary_color": primary_color,

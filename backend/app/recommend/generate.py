@@ -50,7 +50,12 @@ OUTFIT_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "item_ids": {"type": "array", "items": {"type": "string"}},
+                    "item_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 3,
+                        "maxItems": 6,
+                    },
                     "reasoning": {"type": "string"},
                 },
                 "required": ["item_ids", "reasoning"],
@@ -137,7 +142,10 @@ outfit.
 
 Compose 3-5 complete, coordinated outfits using color theory (avoid clashing
 bold patterns, balance formality across pieces) and the given context.
-Each outfit should reference 2-4 item ids. Give one short, warm sentence of
+Each outfit should reference 3-6 item ids. When a look uses 4-6 items,
+diversify the roles -- a top, a bottom, shoes, plus an accessory or
+outerwear layer where it genuinely helps the outfit -- rather than stacking
+multiple items from the same category. Give one short, warm sentence of
 reasoning per outfit explaining why it works.
 
 If the CONTEXT includes weather notes (e.g. "17°C and clear"), reference the
