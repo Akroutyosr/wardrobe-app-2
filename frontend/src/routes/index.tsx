@@ -39,22 +39,22 @@ function DeckLoading() {
     return () => clearInterval(t);
   }, [steps.length]);
   return (
-    <div className="mb-4 rounded-4xl bg-card shadow-lift">
-      <div className="flex items-center gap-3 px-5 pb-4 pt-5">
+    <div>
+      <div className="flex items-center gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose/10">
           <Loader2 className="animate-spin text-rose" size={20} />
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-extrabold text-foreground">Picking today's look…</p>
+          <p className="text-sm font-extrabold text-foreground">Picking today&apos;s look…</p>
           <p className="truncate text-xs font-semibold text-muted-foreground">{steps[step]}</p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 px-5 pb-5">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="aspect-square animate-pulse rounded-3xl bg-muted" />
         ))}
       </div>
-      <p className="pb-4 pt-3 text-center text-[0.65rem] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+      <p className="pt-4 text-center text-[0.65rem] font-bold uppercase tracking-[0.2em] text-muted-foreground">
         AI styling takes a minute — hang tight
       </p>
     </div>
@@ -111,25 +111,6 @@ function Today() {
 
   return (
     <div className="animate-float-in">
-      {loadingDeck ? (
-        <DeckLoading />
-      ) : !outfit ? (
-        <div className="mb-4 rounded-3xl bg-muted px-5 py-6 text-center">
-          <p className="text-sm font-semibold text-muted-foreground">
-            {error
-              ? "Couldn't build a look right now."
-              : "No look available yet — add clothes in the Closet first."}
-          </p>
-          {error ? (
-            <button
-              onClick={() => refetch()}
-              className="tappable mt-3 rounded-full bg-rose px-4 py-2 text-xs font-extrabold text-primary-foreground"
-            >
-              Try again
-            </button>
-          ) : null}
-        </div>
-      ) : null}
       <header className="mb-4 flex items-center justify-between">
         <div>
           <p className="display text-3xl">Twinish</p>
@@ -170,35 +151,55 @@ function Today() {
           </div>
         </div>
 
-        {outfit && (
-          <div className="px-5 pb-5 pt-5">
-            <PlateCard
-              key={outfit.id}
-              label={weather ? `${today} · ${weather.condition.toLowerCase()}` : today}
-              items={items}
-            />
+        <div className="px-5 pb-5 pt-5">
+          {loadingDeck ? (
+            <DeckLoading />
+          ) : outfit ? (
+            <>
+              <PlateCard
+                key={outfit.id}
+                label={weather ? `${today} · ${weather.condition.toLowerCase()}` : today}
+                items={items}
+              />
 
-            <p className="handwritten mt-4 text-[1.25rem] leading-snug text-foreground/75">
-              “{extra?.handNote}”
-            </p>
+              <p className="handwritten mt-4 text-[1.25rem] leading-snug text-foreground/75">
+                “{extra?.handNote}”
+              </p>
 
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={shuffle}
-                className="tappable flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose py-3.5 text-sm font-extrabold text-primary-foreground"
-              >
-                <Shuffle size={17} /> Shuffle my fit
-              </button>
-              <Link
-                to="/look/$outfitId"
-                params={{ outfitId: outfit.id }}
-                className="tappable flex items-center justify-center gap-1.5 rounded-2xl bg-maize px-4 text-sm font-extrabold text-ink"
-              >
-                See look <ArrowRight size={16} />
-              </Link>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={shuffle}
+                  className="tappable flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose py-3.5 text-sm font-extrabold text-primary-foreground"
+                >
+                  <Shuffle size={17} /> Shuffle my fit
+                </button>
+                <Link
+                  to="/look/$outfitId"
+                  params={{ outfitId: outfit.id }}
+                  className="tappable flex items-center justify-center gap-1.5 rounded-2xl bg-maize px-4 text-sm font-extrabold text-ink"
+                >
+                  See look <ArrowRight size={16} />
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-3xl bg-muted px-5 py-6 text-center">
+              <p className="text-sm font-semibold text-muted-foreground">
+                {error
+                  ? "Couldn't build a look right now."
+                  : "No look available yet — add clothes in the Closet first."}
+              </p>
+              {error ? (
+                <button
+                  onClick={() => refetch()}
+                  className="tappable mt-3 rounded-full bg-rose px-4 py-2 text-xs font-extrabold text-primary-foreground"
+                >
+                  Try again
+                </button>
+              ) : null}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </section>
 
       {/* colour-blocked stat pills */}
