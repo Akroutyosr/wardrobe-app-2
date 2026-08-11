@@ -285,8 +285,12 @@ export async function addItem(imagePath: string, tags: Tags): Promise<ClosetItem
 export async function shouldIBuy(file: File): Promise<VerdictResult> {
   const body = new FormData();
   body.append("upload", file);
+  // The shopping agent is a multi-round-trip LLM loop (photo tagging +
+  // duplicate check + versatility scoring across several Gemini calls), so it
+  // needs the same wide window as outfit generation -- the default 15s read
+  // timeout always aborts it and silently degrades to demo copy.
   return fetchJson<VerdictResult>("/api/should-i-buy", {
     method: "POST",
     body,
-  });
+  }, GENERATE_TIMEOUT_MS);
 }
