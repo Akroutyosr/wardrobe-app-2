@@ -17,7 +17,7 @@ from pathlib import Path
 
 import psycopg
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -37,21 +37,29 @@ from app.agent.orchestrator import evaluate_purchase
 from app.recommend.generate import generate_outfits
 from app.recommend.retrieve import retrieve_candidates
 from app.storage.db import (
+    REPO_ROOT,
+    create_tryon_session,
+    delete_fitting_photo,
     get_distinct_colors,
     get_generated_outfit,
     get_item,
     get_outfits_for_week,
     get_recent_outfit_deck,
+    get_saved_fitting_photo,
+    get_tryon_session,
     get_wear_counts,
     list_items,
     log_outfit_wear,
     rate_generated_outfit,
+    save_fitting_photo,
     save_quiz_preference,
+    update_tryon_session,
 )
 from app.storage.ingest import ingest_item
 from app.storage.vectors import find_similar, item_to_text
 from app.tagging.schema import ClothingItem
 from app.tagging.tagger import tag_photo
+from app.tryon.vton_client import try_on
 
 
 class AddItemRequest(BaseModel):
@@ -100,6 +108,10 @@ app.add_middleware(
 # page navigation.
 PHOTO_DIR.mkdir(parents=True, exist_ok=True)
 
+# Fitting-room try-on results (composited images) live under data/fitting_room.
+FITTING_DIR = REPO_ROOT / "data" / "fitting_room"
+FITTING_DIR.mkdir(parents=True, exist_ok=True)
+
 
 @app.get("/photos/{name}")
 def photo(name: str) -> FileResponse:
@@ -124,6 +136,16 @@ def cutout(name: str) -> FileResponse:
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400, immutable"},
     )
+
+
+@app.get("/fitting-room/{name}")
+def fitting_room_result(name: str) -> FileResponse:
+    """Serve composited try-on results. Private to the session that made them,
+    so no CDN cache -- a result can be deleted at any time."""
+    path = FITTING_DIR / Path(name).name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Try-on result not found")
+    return FileResponse(path, media_type="image/png")
 
 
 def _save_upload(upload: UploadFile) -> str:
@@ -307,3 +329,100 @@ async def api_should_i_buy(upload: UploadFile = File(...)) -> dict:
         "tool_log": tool_log,
         "new_item": new_item,
     }
+
+
+# --- Fitting room -------------------------------------------------------------
+#
+# The try-on pipeline composites ONE garment at a time onto the base photo
+# (each pass's output feeds the next pass's input), so a full outfit is several
+# sequential IDM-VTON calls. Sessions persist progress so the frontend can show
+# "Fitting 2 of 3: jeans…" rather than a bare spinner, and every step returns a
+# servable result image that builds up the before/after.
+
+# Categories IDM-VTON can meaningfully composite. Accessories/bags are skipped
+# rather than producing a nonsense warp on a small garment crop.
+GARMENT_CATEGORIES = ("top", "bottom", "outerwear", "dress", "shoes")
+
+
+def _resolve_path(stored: str) -> Path:
+    """Stored image paths may be absolute (uploads) or backend-relative
+    (ingested data) -- resolve both to a real filesystem path."""
+    path = Path(stored)
+    return path if path.is_absolute() else REPO_ROOT / path
+
+
+@app.post("/api/fitting-room/photo")
+def api_upload_fitting_photo(
+    photo: UploadFile = File(...),
+    consent_to_save: bool = Form(False),
+    x_device_id: str = Header(...),
+):
+    image_path = _save_upload(photo)  # reuse existing helper, saves under data/photos/
+    photo_id = save_fitting_photo(x_device_id, image_path, consent_to_save)
+    return {"photo_id": photo_id, "image_path": image_path}
+
+
+@app.get("/api/fitting-room/photo/saved")
+def api_get_saved_photo(x_device_id: str = Header(...)):
+    photo = get_saved_fitting_photo(x_device_id)
+    if photo is None:
+        raise HTTPException(404, "No saved fitting room photo")
+    return photo
+
+
+@app.delete("/api/fitting-room/photo")
+def api_delete_fitting_photo(x_device_id: str = Header(...)):
+    delete_fitting_photo(x_device_id)
+    return {"status": "deleted"}
+
+
+@app.post("/api/fitting-room/tryon")
+def api_start_tryon(
+    outfit_id: str = Form(...),
+    photo_path: str = Form(...),  # from either fresh upload or the saved-photo endpoint
+    x_device_id: str = Header(...),
+):
+    outfit = get_generated_outfit(outfit_id)
+    if outfit is None:
+        raise HTTPException(404, "Outfit not found")
+
+    items = [get_item(i) for i in outfit["item_ids"] if get_item(i) is not None]
+    garment_items = [i for i in items if i["category"] in GARMENT_CATEGORIES]
+    if not garment_items:
+        raise HTTPException(400, "This outfit has no items IDM-VTON can composite")
+
+    session_id = create_tryon_session(
+        x_device_id, photo_path, outfit_id, total_steps=len(garment_items)
+    )
+
+    current_photo = _resolve_path(photo_path)
+    result_path = None
+    for step, item in enumerate(garment_items, 1):
+        garment_path = _resolve_path(item["image_path"])
+        description = f"{item['pattern']} {item['primary_color']} {item['subcategory']}".strip()
+
+        try:
+            result_temp = try_on(current_photo, garment_path, description)
+        except RuntimeError as e:
+            update_tryon_session(session_id, step - 1, str(result_path) if result_path else None, "failed")
+            raise HTTPException(503, f"Try-on service unavailable: {e}")
+
+        out_filename = f"{session_id}_step{step}.png"
+        out_path = FITTING_DIR / out_filename
+        if result_temp.exists():
+            result_temp.rename(out_path)
+        result_path = f"data/fitting_room/{out_filename}"
+        current_photo = out_path  # next item composites onto THIS output
+
+        update_tryon_session(session_id, step, result_path, "in_progress")
+
+    update_tryon_session(session_id, len(garment_items), result_path, "complete")
+    return {"session_id": session_id, "result_image_path": result_path}
+
+
+@app.get("/api/fitting-room/session/{session_id}")
+def api_get_session(session_id: str):
+    session = get_tryon_session(session_id)
+    if session is None:
+        raise HTTPException(404, "Session not found")
+    return session
