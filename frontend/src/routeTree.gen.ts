@@ -17,6 +17,8 @@ import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as ShouldIBuyRouteImport } from './routes/should-i-buy'
 import { Route as ClosetIndexRouteImport } from './routes/closet.index'
 import { Route as ClosetItemIdRouteImport } from './routes/closet.$itemId'
+import { Route as FittingRoomIndexRouteImport } from './routes/fitting-room/index'
+import { Route as FittingRoomCaptureRouteImport } from './routes/fitting-room/capture'
 import { Route as LookOutfitIdRouteImport } from './routes/look.$outfitId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -59,6 +61,16 @@ const ClosetItemIdRoute = ClosetItemIdRouteImport.update({
   path: '/closet/$itemId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FittingRoomIndexRoute = FittingRoomIndexRouteImport.update({
+  id: '/fitting-room/',
+  path: '/fitting-room/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FittingRoomCaptureRoute = FittingRoomCaptureRouteImport.update({
+  id: '/fitting-room/capture',
+  path: '/fitting-room/capture',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LookOutfitIdRoute = LookOutfitIdRouteImport.update({
   id: '/look/$outfitId',
   path: '/look/$outfitId',
@@ -73,8 +85,10 @@ export interface FileRoutesByFullPath {
   '/quiz': typeof QuizRoute
   '/should-i-buy': typeof ShouldIBuyRoute
   '/closet/$itemId': typeof ClosetItemIdRoute
+  '/fitting-room/capture': typeof FittingRoomCaptureRoute
   '/look/$outfitId': typeof LookOutfitIdRoute
   '/closet/': typeof ClosetIndexRoute
+  '/fitting-room/': typeof FittingRoomIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -84,8 +98,10 @@ export interface FileRoutesByTo {
   '/quiz': typeof QuizRoute
   '/should-i-buy': typeof ShouldIBuyRoute
   '/closet/$itemId': typeof ClosetItemIdRoute
+  '/fitting-room/capture': typeof FittingRoomCaptureRoute
   '/look/$outfitId': typeof LookOutfitIdRoute
   '/closet': typeof ClosetIndexRoute
+  '/fitting-room': typeof FittingRoomIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -96,8 +112,10 @@ export interface FileRoutesById {
   '/quiz': typeof QuizRoute
   '/should-i-buy': typeof ShouldIBuyRoute
   '/closet/$itemId': typeof ClosetItemIdRoute
+  '/fitting-room/capture': typeof FittingRoomCaptureRoute
   '/look/$outfitId': typeof LookOutfitIdRoute
   '/closet/': typeof ClosetIndexRoute
+  '/fitting-room/': typeof FittingRoomIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -109,8 +127,10 @@ export interface FileRouteTypes {
     | '/quiz'
     | '/should-i-buy'
     | '/closet/$itemId'
+    | '/fitting-room/capture'
     | '/look/$outfitId'
     | '/closet/'
+    | '/fitting-room/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -120,8 +140,10 @@ export interface FileRouteTypes {
     | '/quiz'
     | '/should-i-buy'
     | '/closet/$itemId'
+    | '/fitting-room/capture'
     | '/look/$outfitId'
     | '/closet'
+    | '/fitting-room'
   id:
     | '__root__'
     | '/'
@@ -131,8 +153,10 @@ export interface FileRouteTypes {
     | '/quiz'
     | '/should-i-buy'
     | '/closet/$itemId'
+    | '/fitting-room/capture'
     | '/look/$outfitId'
     | '/closet/'
+    | '/fitting-room/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -143,8 +167,10 @@ export interface RootRouteChildren {
   QuizRoute: typeof QuizRoute
   ShouldIBuyRoute: typeof ShouldIBuyRoute
   ClosetItemIdRoute: typeof ClosetItemIdRoute
+  FittingRoomCaptureRoute: typeof FittingRoomCaptureRoute
   LookOutfitIdRoute: typeof LookOutfitIdRoute
   ClosetIndexRoute: typeof ClosetIndexRoute
+  FittingRoomIndexRoute: typeof FittingRoomIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -205,6 +231,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClosetItemIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fitting-room/': {
+      id: '/fitting-room/'
+      path: '/fitting-room'
+      fullPath: '/fitting-room/'
+      preLoaderRoute: typeof FittingRoomIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fitting-room/capture': {
+      id: '/fitting-room/capture'
+      path: '/fitting-room/capture'
+      fullPath: '/fitting-room/capture'
+      preLoaderRoute: typeof FittingRoomCaptureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/look/$outfitId': {
       id: '/look/$outfitId'
       path: '/look/$outfitId'
@@ -223,8 +263,10 @@ const rootRouteChildren: RootRouteChildren = {
   QuizRoute: QuizRoute,
   ShouldIBuyRoute: ShouldIBuyRoute,
   ClosetItemIdRoute: ClosetItemIdRoute,
+  FittingRoomCaptureRoute: FittingRoomCaptureRoute,
   LookOutfitIdRoute: LookOutfitIdRoute,
   ClosetIndexRoute: ClosetIndexRoute,
+  FittingRoomIndexRoute: FittingRoomIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

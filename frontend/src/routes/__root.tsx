@@ -8,7 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Home, Shirt, CalendarDays, Sparkles, ShoppingBag } from "lucide-react";
+import { Home, Shirt, CalendarDays, Sparkles, ShoppingBag, Ruler } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -132,6 +132,7 @@ const nav = [
   { to: "/closet", label: "Closet", icon: Shirt },
   { to: "/planner", label: "Week", icon: CalendarDays },
   { to: "/should-i-buy", label: "Buy?", icon: ShoppingBag },
+  { to: "/fitting-room", label: "Try on", icon: Ruler },
   { to: "/quiz", label: "Quiz", icon: Sparkles },
 ] as const;
 

@@ -289,8 +289,98 @@ export async function shouldIBuy(file: File): Promise<VerdictResult> {
   // duplicate check + versatility scoring across several Gemini calls), so it
   // needs the same wide window as outfit generation -- the default 15s read
   // timeout always aborts it and silently degrades to demo copy.
-  return fetchJson<VerdictResult>("/api/should-i-buy", {
+  return fetchJson<VerdictResult>(
+    "/api/should-i-buy",
+    {
+      method: "POST",
+      body,
+    },
+    GENERATE_TIMEOUT_MS,
+  );
+}
+
+// --- Fitting room -------------------------------------------------------------
+
+/** A saved full-body reference photo for this device. */
+export type FittingPhoto = {
+  id: string;
+  device_id: string;
+  image_path: string;
+  consented_to_save: boolean;
+  created_at: string;
+};
+
+/** A try-on session: progress is polled via getTryOnSession. */
+export type TryOnSession = {
+  id: string;
+  device_id: string;
+  base_photo_path: string;
+  outfit_id: string;
+  current_step: number;
+  total_steps: number | null;
+  result_image_path: string | null;
+  status: "in_progress" | "complete" | "failed";
+  created_at: string;
+};
+
+/** Upload a full-body photo, optionally consenting to save it for reuse. */
+export async function uploadFittingPhoto(
+  file: File,
+  consentToSave: boolean,
+  device: string,
+): Promise<{ photo_id: string; image_path: string }> {
+  const body = new FormData();
+  body.append("photo", file);
+  body.append("consent_to_save", String(consentToSave));
+  return fetchJson("/api/fitting-room/photo", {
     method: "POST",
     body,
-  }, GENERATE_TIMEOUT_MS);
+    headers: { "X-Device-Id": device },
+  });
+}
+
+/** Fetch this device's saved reference photo, or null if none was kept. */
+export async function getSavedFittingPhoto(device: string): Promise<FittingPhoto | null> {
+  try {
+    return await fetchJson<FittingPhoto>("/api/fitting-room/photo/saved", {
+      headers: { "X-Device-Id": device },
+    });
+  } catch {
+    return null; // 404 "no saved photo" reads as "none kept"
+  }
+}
+
+export async function deleteSavedFittingPhoto(device: string): Promise<void> {
+  await fetchJson("/api/fitting-room/photo", {
+    method: "DELETE",
+    headers: { "X-Device-Id": device },
+  });
+}
+
+/**
+ * Start a sequential try-on. photoPath comes from either a fresh upload or the
+ * saved-photo endpoint. This is slow (one model pass per garment), so callers
+ * should poll getTryOnSession to drive a progress indicator.
+ */
+export async function startTryOn(
+  outfitId: string,
+  photoPath: string,
+  device: string,
+): Promise<{ session_id: string; result_image_path: string }> {
+  const body = new FormData();
+  body.append("outfit_id", outfitId);
+  body.append("photo_path", photoPath);
+  return fetchJson(
+    "/api/fitting-room/tryon",
+    {
+      method: "POST",
+      body,
+      headers: { "X-Device-Id": device },
+    },
+    GENERATE_TIMEOUT_MS, // multi-pass model loop, can take minutes
+  );
+}
+
+export async function getTryOnSession(sessionId: string): Promise<TryOnSession> {
+  return fetchJson(`/api/fitting-room/session/${sessionId}`);
 }
