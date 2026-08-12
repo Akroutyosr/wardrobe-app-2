@@ -13,6 +13,7 @@ Interactive docs: GET http://localhost:8000/docs
 
 import os
 import shutil
+import threading
 from pathlib import Path
 
 import psycopg
@@ -376,6 +377,33 @@ def api_delete_fitting_photo(x_device_id: str = Header(...)):
     return {"status": "deleted"}
 
 
+def _run_try_on_pipeline(session_id: str, photo_path: str, garment_items: list[dict]) -> None:
+    """Composite each garment onto the running photo, updating the session
+    after every pass. Errors mark the session failed rather than throwing into
+    the caller (this runs in a background thread after the HTTP response)."""
+    current_photo = _resolve_path(photo_path)
+    result_path = None
+    try:
+        for step, item in enumerate(garment_items, 1):
+            garment_path = _resolve_path(item["image_path"])
+            description = f"{item['pattern']} {item['primary_color']} {item['subcategory']}".strip()
+
+            result_temp = try_on(current_photo, garment_path, description)
+
+            out_filename = f"{session_id}_step{step}.png"
+            out_path = FITTING_DIR / out_filename
+            if result_temp.exists():
+                result_temp.rename(out_path)
+            result_path = f"data/fitting_room/{out_filename}"
+            current_photo = out_path  # next item composites onto THIS output
+
+            update_tryon_session(session_id, step, result_path, "in_progress")
+        update_tryon_session(session_id, len(garment_items), result_path, "complete")
+    except Exception as e:  # noqa: BLE001 - background task must never raise
+        update_tryon_session(session_id, 0, str(result_path) if result_path else None, "failed")
+        print(f"[fitting-room] session {session_id} failed: {e}", flush=True)
+
+
 @app.post("/api/fitting-room/tryon")
 def api_start_tryon(
     outfit_id: str = Form(...),
@@ -395,29 +423,16 @@ def api_start_tryon(
         x_device_id, photo_path, outfit_id, total_steps=len(garment_items)
     )
 
-    current_photo = _resolve_path(photo_path)
-    result_path = None
-    for step, item in enumerate(garment_items, 1):
-        garment_path = _resolve_path(item["image_path"])
-        description = f"{item['pattern']} {item['primary_color']} {item['subcategory']}".strip()
-
-        try:
-            result_temp = try_on(current_photo, garment_path, description)
-        except RuntimeError as e:
-            update_tryon_session(session_id, step - 1, str(result_path) if result_path else None, "failed")
-            raise HTTPException(503, f"Try-on service unavailable: {e}")
-
-        out_filename = f"{session_id}_step{step}.png"
-        out_path = FITTING_DIR / out_filename
-        if result_temp.exists():
-            result_temp.rename(out_path)
-        result_path = f"data/fitting_room/{out_filename}"
-        current_photo = out_path  # next item composites onto THIS output
-
-        update_tryon_session(session_id, step, result_path, "in_progress")
-
-    update_tryon_session(session_id, len(garment_items), result_path, "complete")
-    return {"session_id": session_id, "result_image_path": result_path}
+    # The pipeline is slow (one model pass per garment) and the frontend polls
+    # the session for progress, so run it in a background thread after the
+    # session id is handed back — never block the POST for the whole run.
+    thread = threading.Thread(
+        target=_run_try_on_pipeline,
+        args=(session_id, photo_path, garment_items),
+        daemon=True,
+    )
+    thread.start()
+    return {"session_id": session_id, "result_image_path": None}
 
 
 @app.get("/api/fitting-room/session/{session_id}")
