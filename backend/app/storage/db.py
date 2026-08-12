@@ -97,6 +97,34 @@ CREATE TABLE IF NOT EXISTS style_preferences (
     color_family TEXT,
     created_at TEXT
 );
+
+-- Fitting room: an optional full-body reference photo the user opts into
+-- saving so they don't re-upload it every time they try something on.
+-- Privacy is opt-in (consented_to_save) and always deletable per device.
+CREATE TABLE IF NOT EXISTS fitting_room_photos (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    image_path TEXT NOT NULL,
+    consented_to_save BOOLEAN DEFAULT FALSE,
+    created_at TEXT
+);
+
+-- A try-on run: composes one garment at a time onto the base photo, so
+-- session state lets the frontend show real progress (current_step/total)
+-- during the slow multi-pass model calls instead of a bare spinner.
+CREATE TABLE IF NOT EXISTS tryon_sessions (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    base_photo_path TEXT NOT NULL,
+    outfit_id TEXT REFERENCES generated_outfits(id),
+    current_step INTEGER DEFAULT 0,
+    total_steps INTEGER,
+    result_image_path TEXT,
+    status TEXT DEFAULT 'in_progress',
+    created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_fitting_device ON fitting_room_photos(device_id);
 """
 
 
@@ -155,6 +183,76 @@ def set_item_cutout(item_id: str, cutout_path: str) -> None:
     conn.execute("UPDATE items SET cutout_path = %s WHERE id = %s", (cutout_path, item_id))
     conn.commit()
     conn.close()
+
+
+# --- Fitting room -------------------------------------------------------------
+
+
+def save_fitting_photo(device_id: str, image_path: str, consented: bool) -> str:
+    init_db()
+    photo_id = str(uuid.uuid4())[:8]
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO fitting_room_photos (id, device_id, image_path, consented_to_save, created_at) "
+        "VALUES (%s, %s, %s, %s, %s)",
+        (photo_id, device_id, image_path, consented, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+    return photo_id
+
+
+def get_saved_fitting_photo(device_id: str) -> dict | None:
+    init_db()
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM fitting_room_photos WHERE device_id = %s AND consented_to_save = TRUE "
+        "ORDER BY created_at DESC LIMIT 1",
+        (device_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def delete_fitting_photo(device_id: str) -> None:
+    init_db()
+    conn = get_connection()
+    conn.execute("DELETE FROM fitting_room_photos WHERE device_id = %s", (device_id,))
+    conn.commit()
+    conn.close()
+
+
+def create_tryon_session(device_id: str, base_photo_path: str, outfit_id: str, total_steps: int) -> str:
+    init_db()
+    session_id = str(uuid.uuid4())[:8]
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO tryon_sessions (id, device_id, base_photo_path, outfit_id, total_steps, status, created_at)
+        VALUES (%s, %s, %s, %s, %s, 'in_progress', %s)""",
+        (session_id, device_id, base_photo_path, outfit_id, total_steps, datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+    return session_id
+
+
+def update_tryon_session(session_id: str, step: int, result_image_path: str, status: str) -> None:
+    init_db()
+    conn = get_connection()
+    conn.execute(
+        "UPDATE tryon_sessions SET current_step=%s, result_image_path=%s, status=%s WHERE id=%s",
+        (step, result_image_path, status, session_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_tryon_session(session_id: str) -> dict | None:
+    init_db()
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM tryon_sessions WHERE id = %s", (session_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 
 def _conninfo() -> str:
