@@ -3,7 +3,7 @@
 Photo in → validated, structured tags out. This is the foundation everything
 else in the project builds on.
 
-## Setup
+## Setup:
 
 ```bash
 cd backend
