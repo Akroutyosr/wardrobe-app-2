@@ -6,6 +6,7 @@ backend/.env
 backend/data/tagging_logs/
 backend/data/wardrobe.db
 backend/data/chroma/
+backend/data/personal_uploads/
 *.pyc
 
 # frontend

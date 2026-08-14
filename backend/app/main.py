@@ -15,6 +15,7 @@ import os
 import shutil
 import threading
 from pathlib import Path
+from uuid import uuid4
 
 import psycopg
 
@@ -113,6 +114,22 @@ PHOTO_DIR.mkdir(parents=True, exist_ok=True)
 FITTING_DIR = REPO_ROOT / "data" / "fitting_room"
 FITTING_DIR.mkdir(parents=True, exist_ok=True)
 
+# Face/body photos uploaded through the fitting room are private: they live in
+# a gitignored directory (never committed, unlike wardrobe photos which are
+# tracked so the Render free-tier's ephemeral disk still has them).
+PERSONAL_PHOTOS_DIR = REPO_ROOT / "data" / "personal_uploads"
+PERSONAL_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@app.get("/personal-photos/{name}")
+def personal_photo(name: str) -> FileResponse:
+    """Serve a private face/body upload. No CDN or long cache header: these can
+    be deleted at any time and must not linger in browser caches."""
+    path = PERSONAL_PHOTOS_DIR / Path(name).name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-store"})
+
 
 @app.get("/photos/{name}")
 def photo(name: str) -> FileResponse:
@@ -156,6 +173,17 @@ def _save_upload(upload: UploadFile) -> str:
     with dest.open("wb") as out:
         shutil.copyfileobj(upload.file, out)
     return str(dest)
+
+
+def _save_personal_upload(upload: UploadFile) -> str:
+    """Separate from _save_upload() (wardrobe items) -- this directory is
+    gitignored and never committed, since these are face/body photos."""
+    ext = Path(upload.filename or "upload.jpg").suffix or ".jpg"
+    filename = f"{uuid4().hex}{ext}"
+    dest = PERSONAL_PHOTOS_DIR / filename
+    with dest.open("wb") as out:
+        shutil.copyfileobj(upload.file, out)
+    return f"data/personal_uploads/{filename}"
 
 
 @app.get("/api/health")
@@ -358,7 +386,7 @@ def api_upload_fitting_photo(
     consent_to_save: bool = Form(False),
     x_device_id: str = Header(...),
 ):
-    image_path = _save_upload(photo)  # reuse existing helper, saves under data/photos/
+    image_path = _save_personal_upload(photo)  # private, under data/personal_uploads/
     photo_id = save_fitting_photo(x_device_id, image_path, consent_to_save)
     return {"photo_id": photo_id, "image_path": image_path}
 
