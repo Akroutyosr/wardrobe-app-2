@@ -301,6 +301,11 @@ export async function addItem(imagePath: string, tags: Tags): Promise<ClosetItem
   return toClosetItem(data);
 }
 
+/** Permanently delete an item from the wardrobe. */
+export async function deleteItem(itemId: string): Promise<void> {
+  await fetchJson(`/api/items/${encodeURIComponent(itemId)}`, { method: "DELETE" });
+}
+
 // --- Shopping assistant ------------------------------------------------------
 
 export async function shouldIBuy(file: File): Promise<VerdictResult> {

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 import { categories, seasons } from "@/lib/closet-data";
 import { useCloset, useColors } from "@/lib/use-wardrobe";
 import { Sticker } from "@/components/scrapbook";
@@ -45,11 +46,19 @@ function Closet() {
 
   return (
     <div className="animate-float-in">
-      <header className="mb-4">
-        <h1 className="display text-4xl">My closet</h1>
-        <p className="mt-1 font-mono text-[0.66rem] uppercase tracking-[0.25em] text-muted-foreground">
-          {items.length} pieces showing · all already yours
-        </p>
+      <header className="mb-4 flex items-end justify-between gap-2">
+        <div>
+          <h1 className="display text-4xl">My closet</h1>
+          <p className="mt-1 font-mono text-[0.66rem] uppercase tracking-[0.25em] text-muted-foreground">
+            {items.length} pieces showing · all already yours
+          </p>
+        </div>
+        <Link
+          to="/add"
+          className="tappable inline-flex items-center gap-1.5 rounded-full bg-rose px-4 py-2.5 text-sm font-extrabold text-primary-foreground shadow-lift"
+        >
+          <Plus size={17} strokeWidth={2.6} /> Add item
+        </Link>
       </header>
 
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">

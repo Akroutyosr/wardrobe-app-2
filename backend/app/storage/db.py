@@ -358,6 +358,25 @@ def add_item(image_path: str, tags: dict) -> dict:
     return {"id": item_id, "image_path": image_path, "created_at": created_at, **tags}
 
 
+def delete_item(item_id: str) -> bool:
+    """Remove an item and its wear-log rows. Generated outfits and try-on
+    sessions are left untouched (stale references are skipped at read time),
+    so deep links don't break when a piece is deleted. Returns False if no
+    such item exists."""
+    init_db()
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT id FROM items WHERE id = %s", (item_id,)).fetchone()
+        if row is None:
+            return False
+        conn.execute("DELETE FROM wear_log WHERE item_id = %s", (item_id,))
+        conn.execute("DELETE FROM items WHERE id = %s", (item_id,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
 def get_wear_counts() -> dict[str, int]:
     """Returns {item_id: number_of_times_worn} across the whole wear log."""
     init_db()

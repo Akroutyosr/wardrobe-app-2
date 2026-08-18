@@ -1,7 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { itemNotes } from "@/lib/twinish-data";
 import { useCloset, useItem, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
+import { deleteItem } from "@/lib/api";
 import { Badge } from "@/components/ui-bits";
 import { Callout, ArrowNote, WashiTape } from "@/components/scrapbook";
 
@@ -27,9 +30,30 @@ export const Route = createFileRoute("/closet/$itemId")({
 
 function ItemDetail() {
   const { itemId } = Route.useLoaderData();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: item } = useItem(itemId);
   const { data: closet } = useCloset();
   const { data: outfits } = useOutfits();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const removeItem = async () => {
+    if (!item) return;
+    setDeleting(true);
+    try {
+      await deleteItem(item.id);
+      // The item may have been the anchor of cached outfit decks too — drop
+      // the closet (and outfits) so nothing stale lingers after navigating back.
+      await queryClient.invalidateQueries({ queryKey: ["closet"] });
+      await queryClient.invalidateQueries({ queryKey: ["outfits"] });
+      navigate({ to: "/closet" });
+    } catch (err) {
+      console.error("delete failed:", err);
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
 
   if (!item) {
     return (
@@ -57,12 +81,40 @@ function ItemDetail() {
 
   return (
     <div className="animate-float-in">
-      <Link
-        to="/closet"
-        className="tappable mb-4 inline-flex items-center gap-1.5 rounded-full bg-card px-4 py-2 text-xs font-bold uppercase tracking-widest shadow-polaroid"
-      >
-        <ArrowLeft size={15} /> Closet
-      </Link>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <Link
+          to="/closet"
+          className="tappable inline-flex items-center gap-1.5 rounded-full bg-card px-4 py-2 text-xs font-bold uppercase tracking-widest shadow-polaroid"
+        >
+          <ArrowLeft size={15} /> Closet
+        </Link>
+
+        {confirming ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setConfirming(false)}
+              disabled={deleting}
+              className="tappable rounded-full bg-card px-4 py-2 text-xs font-bold text-muted-foreground shadow-polaroid"
+            >
+              Keep it
+            </button>
+            <button
+              onClick={removeItem}
+              disabled={deleting}
+              className="tappable inline-flex items-center gap-1.5 rounded-full bg-rose px-4 py-2 text-xs font-bold text-primary-foreground shadow-lift"
+            >
+              {deleting ? "Removing…" : "Delete forever"}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirming(true)}
+            className="tappable inline-flex items-center gap-1.5 rounded-full bg-card px-4 py-2 text-xs font-bold uppercase tracking-widest text-muted-foreground shadow-polaroid"
+          >
+            <Trash2 size={15} /> Delete
+          </button>
+        )}
+      </div>
 
       <section className="kraft relative overflow-hidden rounded-3xl p-4 pt-7">
         <WashiTape className="-right-7 top-4 w-32 rotate-[20deg]" />

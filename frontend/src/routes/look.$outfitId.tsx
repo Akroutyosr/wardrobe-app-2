@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Heart, Loader2, Star } from "lucide-react";
 import { extraFor } from "@/lib/twinish-data";
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/look/$outfitId")({
 
 function LookPage() {
   const { outfitId } = Route.useLoaderData();
+  const queryClient = useQueryClient();
   const { data: closet } = useCloset();
   const { data: deck } = useOutfits();
   const { data: fetched, isFetching } = useOutfit(outfitId);
@@ -42,11 +44,21 @@ function LookPage() {
     if (outfit) void rateOutfit(outfit.id, n).catch(() => {});
   };
 
-  const toggleSave = () => {
+  const toggleSave = async () => {
     if (!outfit) return;
-    setSaved((s) => !s);
-    if (saved) void unsaveOutfit(outfit.id).catch(() => setSaved((s) => !s));
-    else void saveOutfit(outfit.id).catch(() => setSaved((s) => !s));
+    const next = !saved;
+    setSaved(next); // optimistic
+    try {
+      if (next) await saveOutfit(outfit.id);
+      else await unsaveOutfit(outfit.id);
+    } catch (e) {
+      console.error("save toggle failed:", e);
+      setSaved((s) => !s); // roll back on failure
+      return;
+    }
+    // The saved-lists (Ideas tab, fitting room) share this query cache — refresh
+    // them so a save here shows up immediately instead of serving stale data.
+    await queryClient.invalidateQueries({ queryKey: ["outfits", "saved"] });
   };
 
   const activeItem = items[active] ?? items[0];

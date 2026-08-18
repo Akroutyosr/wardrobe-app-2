@@ -7,6 +7,7 @@ backend/data/tagging_logs/
 backend/data/wardrobe.db
 backend/data/chroma/
 backend/data/personal_uploads/
+backend/data/fitting_room/
 *.pyc
 
 # frontend

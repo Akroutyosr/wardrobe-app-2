@@ -42,6 +42,7 @@ from app.storage.db import (
     REPO_ROOT,
     create_tryon_session,
     delete_fitting_photo,
+    delete_item,
     get_distinct_colors,
     get_generated_outfit,
     get_item,
@@ -232,6 +233,13 @@ def api_get_item(item_id: str) -> dict:
         raise HTTPException(status_code=404, detail=f"No item with id {item_id}")
     row["worn"] = get_wear_counts().get(item_id, 0)
     return item_to_dto(row)
+
+
+@app.delete("/api/items/{item_id}")
+def api_delete_item(item_id: str) -> dict:
+    if not delete_item(item_id):
+        raise HTTPException(status_code=404, detail=f"No item with id {item_id}")
+    return {"status": "deleted", "item_id": item_id}
 
 
 @app.get("/api/items/{item_id}/similar")
