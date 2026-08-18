@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Trash2 } from "lucide-react";
 import { itemNotes } from "@/lib/twinish-data";
 import { useCloset, useItem, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
 import { deleteItem } from "@/lib/api";
@@ -35,6 +35,14 @@ function ItemDetail() {
   const { data: item } = useItem(itemId);
   const { data: closet } = useCloset();
   const { data: outfits } = useOutfits();
+  // On-demand generation anchored on THIS item — the deck only shares the page
+  // if the user asks ("build looks around this"), so it never re-runs Gemini
+  // uninvited, and it works for items that were never in a daily deck.
+  const [building, setBuilding] = useState(false);
+  const { data: anchorOutfits, isFetching: anchorsLoading } = useOutfits(
+    { anchor_item_id: item?.id ?? "" },
+    building && Boolean(item),
+  );
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -192,6 +200,71 @@ function ItemDetail() {
           </div>
         </section>
       )}
+
+      <section className="mt-6">
+        <h2 className="display mb-2 text-2xl">Build looks around this</h2>
+        <p className="mb-3 text-sm text-muted-foreground">
+          {building
+            ? "Styling a fresh set with this piece at the center…"
+            : "Want full outfits built around this item, not just today's deck?"}
+        </p>
+
+        {building && anchorsLoading && (
+          <div className="animate-pulse rounded-3xl bg-card p-6">
+            <p className="text-sm font-semibold text-muted-foreground">
+              Asking the stylist… takes a moment
+            </p>
+          </div>
+        )}
+
+        {building && !anchorsLoading && anchorOutfits.length > 0 && (
+          <div className="space-y-3">
+            {anchorOutfits.slice(0, 4).map((o) => (
+              <Link
+                key={o.id}
+                to="/look/$outfitId"
+                params={{ outfitId: o.id }}
+                className="tappable paper flex items-center gap-3 rounded-2xl p-3"
+              >
+                <div className="flex -space-x-3">
+                  {itemsByIds(o.items, closet)
+                    .slice(0, 3)
+                    .map((it) => (
+                      <img
+                        key={it.id}
+                        src={it.image}
+                        alt={it.name}
+                        loading="lazy"
+                        className="h-12 w-12 rounded-xl border-2 border-card object-cover shadow-sm"
+                      />
+                    ))}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">{o.title}</p>
+                  <p className="truncate text-xs text-muted-foreground">{o.caption}</p>
+                </div>
+                <span className="text-sm font-extrabold text-rose">View →</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {building && !anchorsLoading && anchorOutfits.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Couldn't build a complete look — this piece may be missing compatible
+            counterparts (e.g. shoes or bottoms) to pair with.
+          </p>
+        )}
+
+        {!building && (
+          <button
+            onClick={() => setBuilding(true)}
+            className="tappable mt-1 flex w-full items-center justify-center gap-2 rounded-3xl bg-rose py-4 text-sm font-extrabold text-primary-foreground"
+          >
+            <Sparkles size={18} /> Build looks around this
+          </button>
+        )}
+      </section>
     </div>
   );
 }
