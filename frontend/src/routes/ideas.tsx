@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Heart, X, RotateCcw } from "lucide-react";
-import { useCloset, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
+import { useCloset, useOutfits, useSavedOutfits, itemsByIds } from "@/lib/use-wardrobe";
+import { saveOutfit, unsaveOutfit } from "@/lib/api";
 import { ItemThumb } from "@/components/ui-bits";
 import { Confetti } from "@/components/Confetti";
 
@@ -23,26 +24,27 @@ export const Route = createFileRoute("/ideas")({
 function Ideas() {
   const [tab, setTab] = useState<"deck" | "saved">("deck");
   const [index, setIndex] = useState(0);
-  const [savedIds, setSavedIds] = useState<string[]>([]);
   const [leaving, setLeaving] = useState<"left" | "right" | null>(null);
   const [fire, setFire] = useState(0);
   const { data: closet } = useCloset();
   const { data: outfits } = useOutfits({ notes: "inspire me" });
+  const { data: savedOutfits, refetch: refetchSaved } = useSavedOutfits();
 
   const current = outfits[index];
-  const saved = outfits.filter((o) => savedIds.includes(o.id));
+  const saved = savedOutfits ?? [];
   const resolve = (ids: string[]) => itemsByIds(ids, closet);
 
   const decide = (dir: "left" | "right") => {
     if (!current || leaving) return;
     setLeaving(dir);
     if (dir === "right") {
-      setSavedIds((s) => [...s, current.id]);
       setFire((f) => f + 1);
+      void saveOutfit(current.id).catch(() => {});
     }
     setTimeout(() => {
       setIndex((i) => i + 1);
       setLeaving(null);
+      void refetchSaved();
     }, 300);
   };
 
@@ -155,6 +157,16 @@ function Ideas() {
                   ))}
               </div>
               <p className="mt-2 text-sm font-bold leading-snug">{o.title}</p>
+              <button
+                onClick={() => {
+                  void unsaveOutfit(o.id).catch(() => {});
+                  void refetchSaved();
+                }}
+                aria-label={`Remove ${o.title} from saved`}
+                className="tappable mt-2 inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[0.65rem] font-bold text-muted-foreground"
+              >
+                <X size={11} /> Unsave
+              </button>
             </div>
           ))}
         </div>

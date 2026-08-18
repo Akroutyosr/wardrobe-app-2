@@ -171,6 +171,7 @@ export type Outfit = {
   title: string;
   caption: string;
   items: string[];
+  saved?: boolean;
 };
 
 export const outfits: Outfit[] = [

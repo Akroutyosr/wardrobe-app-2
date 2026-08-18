@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, Loader2, Star } from "lucide-react";
+import { ArrowLeft, Heart, Loader2, Star } from "lucide-react";
 import { extraFor } from "@/lib/twinish-data";
 import { useCloset, useOutfits, useOutfit, itemsByIds } from "@/lib/use-wardrobe";
-import { rateOutfit } from "@/lib/api";
+import { rateOutfit, saveOutfit, unsaveOutfit } from "@/lib/api";
 import { Callout, WashiTape, ArrowNote } from "@/components/scrapbook";
 
 export const Route = createFileRoute("/look/$outfitId")({
@@ -34,11 +34,19 @@ function LookPage() {
   const [active, setActive] = useState(0);
   const [rating, setRating] = useState<number | null>(null);
   const [noted, setNoted] = useState(false);
+  const [saved, setSaved] = useState(Boolean(outfit?.saved));
 
   const rate = (n: number) => {
     setRating(n);
     setNoted(true);
     if (outfit) void rateOutfit(outfit.id, n).catch(() => {});
+  };
+
+  const toggleSave = () => {
+    if (!outfit) return;
+    setSaved((s) => !s);
+    if (saved) void unsaveOutfit(outfit.id).catch(() => setSaved((s) => !s));
+    else void saveOutfit(outfit.id).catch(() => setSaved((s) => !s));
   };
 
   const activeItem = items[active] ?? items[0];
@@ -89,6 +97,19 @@ function LookPage() {
       >
         <ArrowLeft size={15} /> Week
       </Link>
+
+      {outfit && (
+        <button
+          onClick={toggleSave}
+          aria-label={saved ? "Remove from saved looks" : "Save this look"}
+          className={`tappable mb-4 ml-2 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest shadow-polaroid ${
+            saved ? "bg-rose text-primary-foreground" : "bg-card"
+          }`}
+        >
+          <Heart size={15} fill={saved ? "currentColor" : "none"} />
+          {saved ? "Saved" : "Save look"}
+        </button>
+      )}
 
       {/* binder page */}
       <section className="kraft animate-print relative overflow-hidden rounded-3xl p-4 pt-8">

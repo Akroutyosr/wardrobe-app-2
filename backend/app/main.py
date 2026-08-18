@@ -47,6 +47,7 @@ from app.storage.db import (
     get_item,
     get_outfits_for_week,
     get_recent_outfit_deck,
+    get_saved_outfits,
     get_saved_fitting_photo,
     get_tryon_session,
     get_wear_counts,
@@ -55,6 +56,7 @@ from app.storage.db import (
     rate_generated_outfit,
     save_fitting_photo,
     save_quiz_preference,
+    set_outfit_saved,
     update_tryon_session,
 )
 from app.storage.ingest import ingest_item
@@ -267,6 +269,37 @@ def api_generate_outfits(req: OutfitRequest) -> dict:
             outfit_to_dto(outfit, i, counts) for i, outfit in enumerate(deck)
         ],
     }
+
+
+@app.get("/api/outfits/saved")
+def api_saved_outfits() -> dict:
+    """Outfits the user has explicitly favorited (saved from the ideas/look
+    pages), newest first — the durable favorites list."""
+    outfits = get_saved_outfits()
+    counts = get_wear_counts()
+    return {
+        "outfits": [
+            outfit_to_dto(outfit, i, counts) for i, outfit in enumerate(outfits)
+        ],
+    }
+
+
+@app.post("/api/outfits/{outfit_id}/save")
+def api_save_outfit(outfit_id: str) -> dict:
+    try:
+        set_outfit_saved(outfit_id, True)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"outfit_id": outfit_id, "saved": True}
+
+
+@app.delete("/api/outfits/{outfit_id}/save")
+def api_unsave_outfit(outfit_id: str) -> dict:
+    try:
+        set_outfit_saved(outfit_id, False)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"outfit_id": outfit_id, "saved": False}
 
 
 @app.get("/api/outfits/{outfit_id}")

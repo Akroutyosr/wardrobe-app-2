@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Camera, Download, Loader2, RotateCcw, Shirt, Trash2 } from "lucide-react";
-import { useCloset, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
+import { useCloset, useOutfits, useSavedOutfits, itemsByIds } from "@/lib/use-wardrobe";
 import {
   deleteSavedFittingPhoto,
   getSavedFittingPhoto,
@@ -37,7 +37,13 @@ type Stage = "start" | "trying" | "result" | "error";
 function FittingRoom() {
   const { photo } = Route.useSearch();
   const { data: closet } = useCloset();
-  const { data: outfits } = useOutfits();
+  const { data: savedOutfits } = useSavedOutfits();
+  const hasSaved = (savedOutfits?.length ?? 0) > 0;
+  // Prefer saved (favorited) looks for try-on — those are the ones the user
+  // actually cares about — and only hit the slow Gemini generator for a fresh
+  // deck before anyone has saved anything.
+  const { data: deckOutfits } = useOutfits({ notes: "fitting room" }, !hasSaved);
+  const outfits = hasSaved ? (savedOutfits ?? []) : (deckOutfits ?? []);
 
   const [photoPath, setPhotoPath] = useState<string | null>(photo ?? null);
   const [checkingSaved, setCheckingSaved] = useState(!photo);
@@ -190,7 +196,11 @@ function FittingRoom() {
             </h2>
             {outfits.length === 0 ? (
               <p className="mt-3 text-sm font-semibold text-muted-foreground">
-                No looks yet — generate one on the home screen first.
+                {hasSaved ? (
+                  <>No saved looks to try on — save some from the Ideas page first.</>
+                ) : (
+                  <>No looks yet — generate one on the home screen first.</>
+                )}
               </p>
             ) : (
               <div className="mt-3 space-y-2">

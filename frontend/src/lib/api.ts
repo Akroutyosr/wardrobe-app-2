@@ -74,6 +74,8 @@ export type ApiOutfit = {
   caption: string;
   item_ids: string[];
   items: ApiItem[];
+  saved?: boolean;
+  rating?: number | null;
 };
 
 /** Structured tags produced by the tagging pipeline (ClothingItem schema). */
@@ -137,6 +139,7 @@ export function toOutfit(o: ApiOutfit, known: ClosetItem[]): Outfit {
     title: o.title,
     caption: o.caption,
     items,
+    saved: Boolean(o.saved),
   };
 }
 
@@ -218,9 +221,27 @@ export async function rateOutfit(outfitId: string, rating: number, wornOn?: stri
   });
 }
 
+/** Save (favorite) a generated outfit so it survives reloads. */
+export async function saveOutfit(outfitId: string): Promise<void> {
+  await fetchJson(`/api/outfits/${encodeURIComponent(outfitId)}/save`, { method: "POST" });
+}
+
+/** Un-save a previously favorited outfit. */
+export async function unsaveOutfit(outfitId: string): Promise<void> {
+  await fetchJson(`/api/outfits/${encodeURIComponent(outfitId)}/save`, { method: "DELETE" });
+}
+
+/** The durable favorites list — saved looks, used by the Ideas page and the
+ *  fitting room's outfit picker. */
+export async function fetchSavedOutfits(): Promise<Outfit[]> {
+  const known = await fetchItems();
+  const data = await fetchJson<{ outfits: ApiOutfit[] }>("/api/outfits/saved");
+  return data.outfits.map((o) => toOutfit(o, known));
+}
+
 // --- Deep-link / outfit resolution ------------------------------------------
 
-type RawOutfit = { id: string; item_ids: string[]; reasoning?: string };
+type RawOutfit = { id: string; item_ids: string[]; reasoning?: string; is_saved?: boolean };
 
 /**
  * Load one persisted outfit by its stable id — the real deep-link fix for
@@ -245,7 +266,7 @@ export async function fetchOutfit(id: string): Promise<Outfit | null> {
         .slice(0, 3)
         .map((iid) => byId.get(iid)!.name)
         .join(" · ") || `Look ${raw.id}`;
-    return { id: raw.id, title, caption: raw.reasoning ?? "", items };
+    return { id: raw.id, title, caption: raw.reasoning ?? "", items, saved: Boolean(raw.is_saved) };
   } catch {
     // Not found or unreachable backend — null (not undefined, which React
     // Query v5 rejects) so the caller can fall back to the deck / not-found.

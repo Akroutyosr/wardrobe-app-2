@@ -1,7 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ClosetItem, Outfit } from "./closet-data";
 import { closet, colors as fallbackColors } from "./closet-data";
-import { fetchColors, fetchItem, fetchItems, fetchOutfit, generateOutfits } from "./api";
+import {
+  fetchColors,
+  fetchItem,
+  fetchItems,
+  fetchOutfit,
+  generateOutfits,
+  fetchSavedOutfits,
+} from "./api";
 import { fetchWeather, getLocation } from "./weather";
 
 /**
@@ -28,12 +35,15 @@ export function useItem(id: string) {
   });
 }
 
-export function useOutfits(ctx?: {
-  occasion?: string;
-  season?: string;
-  anchor_item_id?: string;
-  notes?: string;
-}): {
+export function useOutfits(
+  ctx?: {
+    occasion?: string;
+    season?: string;
+    anchor_item_id?: string;
+    notes?: string;
+  },
+  enabled?: boolean,
+): {
   data: Outfit[];
   isFetching: boolean;
   error: unknown;
@@ -50,6 +60,7 @@ export function useOutfits(ctx?: {
     queryFn: () => generateOutfits(ctx),
     staleTime: 10 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
+    enabled: enabled ?? true,
   });
   return {
     data: (query.data ?? []) as Outfit[],
@@ -76,6 +87,16 @@ export function useOutfit(id: string) {
     // of instantly settling to "not found".
     retry: 2,
     retryDelay: (attempt) => attempt * 1500 + 1000,
+  });
+}
+
+/** Saved (favorited) outfits — the durable favorites list. */
+export function useSavedOutfits() {
+  return useQuery({
+    queryKey: ["outfits", "saved"],
+    queryFn: () => fetchSavedOutfits(),
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 }
 

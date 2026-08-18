@@ -214,4 +214,6 @@ def outfit_to_dto(outfit: dict, index: int, worn_counts: dict[str, int]) -> dict
         "caption": outfit.get("reasoning", ""),
         "item_ids": item_ids,
         "items": items,
+        "saved": bool(outfit.get("is_saved", False)),
+        "rating": outfit.get("rating"),
     }

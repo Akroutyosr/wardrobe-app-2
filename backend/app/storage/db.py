@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS generated_outfits (
     reasoning TEXT,
     created_at TEXT,
     rating INTEGER,
-    worn_on TEXT
+    worn_on TEXT,
+    is_saved BOOLEAN DEFAULT FALSE
 );
 
 -- Style quiz answers: a cold-start signal for the stylist before real
@@ -297,6 +298,7 @@ def init_db() -> None:
         # CREATE TABLE IF NOT EXISTS won't add a column to an already-existing
         # items table, so migrate live tables explicitly (Postgres supports this).
         conn.execute("ALTER TABLE items ADD COLUMN IF NOT EXISTS cutout_path TEXT")
+        conn.execute("ALTER TABLE generated_outfits ADD COLUMN IF NOT EXISTS is_saved BOOLEAN DEFAULT FALSE")
         conn.commit()
     finally:
         conn.close()
@@ -519,6 +521,31 @@ def rate_generated_outfit(outfit_id: str, rating: int, worn_on: str | None = Non
         raise ValueError(f"No generated outfit with id {outfit_id}")
     item_ids = json.loads(row["item_ids_json"])
     log_outfit_wear(item_ids, rating, worn_on, outfit_id=outfit_id)
+
+
+def set_outfit_saved(outfit_id: str, saved: bool) -> None:
+    """Mark a generated outfit as saved (favorite) or unsave it. Idempotent."""
+    init_db()
+    conn = get_connection()
+    row = conn.execute(
+        "UPDATE generated_outfits SET is_saved = %s WHERE id = %s RETURNING id",
+        (saved, outfit_id),
+    ).fetchone()
+    conn.commit()
+    conn.close()
+    if row is None:
+        raise ValueError(f"No generated outfit with id {outfit_id}")
+
+
+def get_saved_outfits() -> list[dict]:
+    """All outfits the user has explicitly saved (favorited), newest first."""
+    init_db()
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM generated_outfits WHERE is_saved = TRUE ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def get_recent_outfit_deck(
