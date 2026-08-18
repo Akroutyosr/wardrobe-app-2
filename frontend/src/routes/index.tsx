@@ -167,19 +167,20 @@ function Today() {
               </p>
 
               <div className="mt-4 flex gap-2">
-                <button
-                  onClick={shuffle}
-                  className="tappable flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose py-3.5 text-sm font-extrabold text-primary-foreground"
-                >
-                  <Shuffle size={17} /> Shuffle my fit
-                </button>
                 <Link
                   to="/look/$outfitId"
                   params={{ outfitId: outfit.id }}
+                  className="tappable flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose py-3.5 text-sm font-extrabold text-primary-foreground"
+                >
+                  See the look <ArrowRight size={17} />
+                </Link>
+                <button
+                  onClick={shuffle}
+                  aria-label="Shuffle for another fit"
                   className="tappable flex items-center justify-center gap-1.5 rounded-2xl bg-maize px-4 text-sm font-extrabold text-ink"
                 >
-                  See look <ArrowRight size={16} />
-                </Link>
+                  <Shuffle size={17} />
+                </button>
               </div>
             </>
           ) : (
