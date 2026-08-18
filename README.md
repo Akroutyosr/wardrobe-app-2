@@ -1,121 +1,113 @@
-# Digital Wardrobe Twin: TWINISH 💅🏻
+# Twinish — Digital Wardrobe Twin 💅🏻
 
-This folder merges the two pieces that were previously in separate zips:
+Turn your closet into a digital twin: every item tagged and understood, outfits
+generated from what you actually own, a shopping assistant for "should I buy
+this?", and a virtual fitting room that composites your clothes onto a
+full-body photo.
 
 ```
 wardrobe-app/
-├── MASTERPLAN.md        ← project plan (source of truth, see §8 for how to use it)
-├── README-backend.md    ← original Phase 1 backend README (setup steps below)
-├── backend/             ← Python tagging/agent/eval pipeline (was wardrobe-app_copie/backend)
-└── frontend/            ← Lovable-generated TanStack Start + React UI (was closet-bestie-style-main)
+├── MASTERPLAN.md      ← project plan & decision log (source of truth)
+├── backend/           ← FastAPI: tagging, wardrobe storage, outfit gen, try-on
+├── frontend/          ← TanStack Start + React UI (Lovable scaffold)
+├── README.md          ← you are here
+└── README-backend.md  ← tagging pipeline deep-dive + eval guide
 ```
 
-Nothing inside `backend/` or `frontend/` was changed — this is a straight merge into
-one folder so you can work on both from a single VS Code window / single git repo.
-Two things were deliberately **not** carried over and need to be regenerated locally:
+## Stack
 
-- `backend/venv/` (460MB, machine-specific — recreate with the steps below)
-- `frontend/node_modules/` (not present in the zip either — `bun install` will create it)
+- **Backend**: Python / FastAPI. Gemini for tagging + outfit generation + the
+  shopping agent; Postgres (Supabase) + pgvector for wardrobe storage; IDM-VTON
+  via Hugging Face Spaces for virtual try-on.
+- **Frontend**: TanStack Start + React + Tailwind (Lovable scaffold), talks to
+  the backend through a thin REST client in `src/lib/api.ts`.
 
-Your real `backend/.env` (with your Gemini API key) **was** copied over, so the
-backend should work as-is once the venv is rebuilt.
+## Quickstart
 
-## Backend setup
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python ping.py                  # sanity check — should print "Response: pong"
-```
-
-See `README-backend.md` for the full Phase 1 walkthrough (tagging a photo, building
-the eval set, running `run_eval.py`).
-
-## Frontend setup
-
-The frontend uses `bun` (see `bunfig.toml`, `bun.lock`):
-
-```bash
-cd frontend
-bun install
-bun run dev
-```
-
-If you don't have bun installed: `npm install` / `npm run dev` will also work off
-`package.json`, but `bun.lock` won't be respected (expect slightly different resolved
-versions).
-
-## Phase 6: running the full stack (FastAPI backend + React frontend)
-
-The frontend pages (closet, outfit ideas, add-item, should-I-buy, planner) talk to
-a real FastAPI backend that reuses the Phase 1–5 pipeline. Photos are stored
-locally and served from the backend; reads and writes hit the API.
-
-**1. Start the backend** (from `backend/`):
+### Backend
 
 ```bash
 cd backend
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env    # then add GEMINI_API_KEY + DATABASE_URL
+cp .env.example .env    # then fill in GEMINI_API_KEY + DATABASE_URL
 ```
 
-The backend now reads and writes **Supabase Postgres** (pgvector) instead of
-local SQLite + Chroma. Create a free Supabase project, enable the vector
-extension in the SQL editor (`CREATE EXTENSION IF NOT EXISTS vector;`), grab
-the connection string from Project Settings → Database, put it in `DATABASE_URL`
-in `backend/.env`, then run the one-time migration:
+- Get a free Gemini key at https://aistudio.google.com/apikey
+- The backend needs a **Supabase Postgres** database (pgvector). Create a free
+  project, run `CREATE EXTENSION IF NOT EXISTS vector;` in the SQL editor, and
+  put the connection string in `DATABASE_URL` (Project Settings → Database →
+  connection string, port 6543 works).
+- First time only — copy local data into Postgres:
+  ```bash
+  python -m app.scripts.migrate_to_postgres
+  ```
+
+Sanity check, then start the API:
 
 ```bash
-python -m app.scripts.migrate_to_postgres   # copies wardrobe.db + Chroma into Postgres
-```
-
-Then start the API:
-
-```bash
+python ping.py                      # "Response: pong" → key works
 uvicorn app.main:app --reload --port 8000
 ```
 
-Health check: `curl http://localhost:8000/api/health` → `{"status":"ok","items":49,…}`
+Health check: `curl http://localhost:8000/api/health`
 Interactive docs: `http://localhost:8000/docs`
 
-**2. Point the frontend at it** (from `frontend/`):
+### Frontend
 
 ```bash
 cd frontend
-cp .env.example .env   # VITE_API_URL=http://localhost:8000 (this is also the default)
-npm install
-npm run dev
+bun install          # npm install works too, but bun.lock is the source of truth
+cp .env.example .env # VITE_API_URL=http://localhost:8000 (default when unset)
+bun run dev
 ```
 
-Every read hooks through `src/lib/api.ts` and falls back to the built-in mock
-data (`src/lib/closet-data.ts`) if the backend isn't reachable, so the UI still
-renders during development before the server is up.
+The UI falls back to built-in mock data when the backend is unreachable, so
+the frontend still renders during development before the server is up.
 
-Main API endpoints (see `backend/app/main.py`):
+## API overview
+
+See `backend/app/main.py` for the authoritative list. Main endpoints:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/items` | list wardrobe (`?category=&season=`, frontend vocab) |
+| GET | `/api/items` | list wardrobe (`?category=&season=`) |
 | GET | `/api/items/{id}` | single item |
 | GET | `/api/items/{id}/similar` | embedding-similar items (pgvector) |
+| POST | `/api/items/upload` | tag a photo without saving (review step) |
+| POST | `/api/items` | save a reviewed item |
 | POST | `/api/outfits/generate` | RAG outfit generation (Gemini) |
 | GET | `/api/outfits/{id}` | one persisted outfit (deep-link) |
 | POST | `/api/outfits/{id}/rate` | rate a generated outfit |
+| GET | `/api/planner/week` | weekly planner outfits |
 | POST | `/api/feedback` | log a worn outfit + rating (few-shot signal) |
 | GET | `/api/colors` | distinct wardrobe colors for filter chips |
-| POST | `/api/items/upload` | tag a photo without saving (review step) |
-| POST | `/api/items` | save a reviewed item (Postgres + pgvector) |
 | POST | `/api/should-i-buy` | shopping agent verdict (upload a photo) |
-| GET | `/photos/*` | served wardrobe photos (static) |
+| POST | `/api/fitting-room/photo` | upload a full-body photo for try-on |
+| POST | `/api/fitting-room/tryon` | run the sequential try-on pipeline |
+| GET | `/api/fitting-room/session/{id}` | poll try-on progress |
+| GET | `/photos/*`, `/cutouts/*` | served wardrobe images |
+| GET | `/personal-photos/*` | private face/body uploads (no cache) |
 
-## Suggested next steps
+## Virtual fitting room
 
-1. `git init` at this root (`wardrobe-app/`) if you want one repo covering both
-   halves instead of two separate git histories.
-2. Add a root `.gitignore` covering `backend/venv/`, `backend/__pycache__/`,
-   `backend/.env`, `frontend/node_modules/`, `frontend/dist/`.
-3. Rebuild the venv and `bun install` as above to confirm both sides still run
-   post-merge.
+1. Upload a full-body photo (`/api/fitting-room/photo`).
+2. Pick a generated outfit — top/bottom/outerwear/dress/shoes items are
+   composited one at a time via IDM-VTON (accessories are skipped).
+3. Poll the session endpoint for progress; each pass's result feeds the next.
+
+Notes:
+
+- Try-on runs on Hugging Face Spaces (free, shared) — set `HF_TOKEN` in
+  `backend/.env` to use your authenticated ZeroGPU quota, otherwise anonymous
+  users are throttled after roughly one run.
+- Face/body uploads live in `backend/data/personal_uploads/`, which is
+  **gitignored** — personal photos are never committed. Wardrobe photos are
+  tracked in git so the free-tier instance's ephemeral disk still has them.
+
+## More docs
+
+- `MASTERPLAN.md` — feature catalog, architecture, eval methodology, and a
+  running decision log (§8 explains how to keep it current).
+- `README-backend.md` — tagging pipeline deep-dive: tagging a photo, building
+  the eval set, and running accuracy evals.
