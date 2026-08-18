@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Sparkles, Trash2 } from "lucide-react";
 import { itemNotes } from "@/lib/twinish-data";
-import { useCloset, useItem, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
+import { useCloset, useItem, useOutfits, useSavedOutfits, itemsByIds } from "@/lib/use-wardrobe";
 import { deleteItem } from "@/lib/api";
 import { Badge } from "@/components/ui-bits";
 import { Callout, ArrowNote, WashiTape } from "@/components/scrapbook";
@@ -32,9 +32,12 @@ function ItemDetail() {
   const { itemId } = Route.useLoaderData();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: item } = useItem(itemId);
+  const { data: item, isFetching: itemLoading } = useItem(itemId);
   const { data: closet } = useCloset();
-  const { data: outfits } = useOutfits();
+  // Companion items come from the durable saved looks (instantly cached by the
+  // Ideas tab) instead of auto-triggering a new deck generation just to render
+  // the "Outfits with this" strip on every item page visit.
+  const { data: savedLooks } = useSavedOutfits();
   // On-demand generation anchored on THIS item — the deck only shares the page
   // if the user asks ("build looks around this"), so it never re-runs Gemini
   // uninvited, and it works for items that were never in a daily deck.
@@ -63,6 +66,25 @@ function ItemDetail() {
     }
   };
 
+  if (!item && itemLoading) {
+    return (
+      <div className="animate-float-in">
+        <Link
+          to="/closet"
+          className="tappable mb-4 inline-flex items-center gap-1.5 rounded-full bg-card px-4 py-2 text-xs font-bold uppercase tracking-widest shadow-polaroid"
+        >
+          <ArrowLeft size={15} /> Closet
+        </Link>
+        <section className="paper rounded-3xl p-8 text-center">
+          <p className="display text-2xl">Fetching that piece…</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Pulling it from your wardrobe — one moment.
+          </p>
+        </section>
+      </div>
+    );
+  }
+
   if (!item) {
     return (
       <div className="animate-float-in rounded-3xl bg-card p-8 text-center shadow-polaroid">
@@ -82,7 +104,9 @@ function ItemDetail() {
     item.note ?? "A quiet workhorse — nothing flashy, always useful.",
   ];
   const related = itemsByIds(
-    outfits.filter((o) => o.items.includes(item.id)).flatMap((o) => o.items),
+    (savedLooks ?? [])
+      .filter((o) => o.items.includes(item.id))
+      .flatMap((o) => o.items),
     closet,
   ).slice(0, 3);
   const itemSummary = item.name;

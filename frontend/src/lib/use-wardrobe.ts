@@ -26,13 +26,14 @@ export function useCloset() {
   });
 }
 
-export function useItem(id: string) {
-  return useQuery({
+export function useItem(id: string): { data: ClosetItem | undefined; isFetching: boolean } {
+  const query = useQuery({
     queryKey: ["item", id],
     queryFn: () => (id ? fetchItem(id) : Promise.resolve(undefined)),
     initialData: closet.find((i) => i.id === id),
     gcTime: 5 * 60 * 1000,
   });
+  return { data: query.data, isFetching: query.isFetching };
 }
 
 export function useOutfits(
