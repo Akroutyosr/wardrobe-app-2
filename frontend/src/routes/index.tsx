@@ -4,6 +4,7 @@ import { Shuffle, ArrowRight, Flame, Trophy, Loader2 } from "lucide-react";
 import { extraFor } from "@/lib/twinish-data";
 import { useCloset, useOutfits, useWeather, itemsByIds } from "@/lib/use-wardrobe";
 import { weatherEmoji } from "@/lib/weather";
+import type { WeatherNow } from "@/lib/weather";
 import { Confetti } from "@/components/Confetti";
 import { PlateCard } from "@/components/plate";
 
@@ -69,13 +70,32 @@ function currentSeason(d: Date = new Date()): string {
   return "winter";
 }
 
+/**
+ * Coarse weather descriptor for the LLM context. Bucketing (instead of the raw
+ * degree number) keeps the backend deck-cache key stable through the day, so
+ * refresh/re-visit reuses the persisted deck instead of re-running Gemini every
+ * time the thermometer ticks over. Condition changes still bust the cache.
+ */
+function weatherBucket(tempC: number): string {
+  if (tempC <= 5) return "cold";
+  if (tempC <= 12) return "cool";
+  if (tempC <= 20) return "mild";
+  if (tempC <= 26) return "warm";
+  return "hot";
+}
+
+function weatherNotes(w: WeatherNow): string {
+  return `${weatherBucket(w.temperature)} and ${w.condition.toLowerCase()}`;
+}
+
 function Today() {
   const [index, setIndex] = useState(0);
   const [fire] = useState(0);
   const { data: closet } = useCloset();
   const { data: weather } = useWeather();
   // Pass the live weather into the LLM deck so the generated outfits and their
-  // reasoning actually reflect today's real conditions.
+  // reasoning actually reflect today's real conditions. Generation waits for
+  // the weather fetch so we never fire a wasteful empty-context deck first.
   const {
     data: outfits,
     isFetching,
@@ -86,9 +106,10 @@ function Today() {
       ? {
           occasion: "casual",
           season: currentSeason(),
-          notes: `${weather.temperature}°C and ${weather.condition.toLowerCase()}`,
+          notes: weatherNotes(weather),
         }
       : undefined,
+    Boolean(weather),
   );
 
   const deck = outfits ?? [];

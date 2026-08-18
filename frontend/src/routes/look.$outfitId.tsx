@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Heart, Loader2, Star } from "lucide-react";
 import { extraFor } from "@/lib/twinish-data";
-import { useCloset, useOutfits, useOutfit, itemsByIds } from "@/lib/use-wardrobe";
+import { useCloset, useOutfit, itemsByIds } from "@/lib/use-wardrobe";
 import { rateOutfit, saveOutfit, unsaveOutfit } from "@/lib/api";
 import { Callout, WashiTape, ArrowNote } from "@/components/scrapbook";
 
@@ -28,9 +28,8 @@ function LookPage() {
   const { outfitId } = Route.useLoaderData();
   const queryClient = useQueryClient();
   const { data: closet } = useCloset();
-  const { data: deck } = useOutfits();
   const { data: fetched, isFetching } = useOutfit(outfitId);
-  const outfit = fetched ?? deck.find((o) => o.id === outfitId);
+  const outfit = fetched;
   const items = itemsByIds(outfit?.items ?? [], closet);
   const extra = extraFor(outfitId);
   const [active, setActive] = useState(0);

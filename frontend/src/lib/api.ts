@@ -286,10 +286,17 @@ export async function fetchColors(): Promise<string[]> {
 export async function uploadPhoto(file: File): Promise<{ image_path: string; tags: Tags }> {
   const body = new FormData();
   body.append("upload", file);
-  return fetchJson<{ image_path: string; tags: Tags }>("/api/items/upload", {
-    method: "POST",
-    body,
-  });
+  // Tagging runs Gemini vision on the photo server-side (with retries), so it
+  // needs the same wide window as outfit generation -- the default 15s timeout
+  // aborts it and silently degrades the add flow to demo review mode.
+  return fetchJson<{ image_path: string; tags: Tags }>(
+    "/api/items/upload",
+    {
+      method: "POST",
+      body,
+    },
+    GENERATE_TIMEOUT_MS,
+  );
 }
 
 export async function addItem(imagePath: string, tags: Tags): Promise<ClosetItem> {

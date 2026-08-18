@@ -568,11 +568,16 @@ def get_saved_outfits() -> list[dict]:
 
 
 def get_recent_outfit_deck(
-    context: dict, max_age_seconds: int = 15 * 60, limit: int = 4
+    context: dict, max_age_seconds: int = 6 * 60 * 60, limit: int = 4
 ) -> list[dict]:
     """LLM deck cache: returns the most recent batch of unrated generated outfits
     for this exact context, so repeat /api/outfits/generate calls (e.g. the home
-    page) skip the slow Gemini round-trip. Empty list if none is fresh enough."""
+    page) skip the slow Gemini round-trip. Empty list if none is fresh enough.
+
+    Defaults to a 6-hour window: the weather context is bucketed (see
+    weatherNotes on the frontend), so the key only changes on real condition
+    shifts — a longer TTL means refreshes all day hit the cache instead of
+    re-running Gemini every few minutes."""
     init_db()
     conn = get_connection()
     try:
