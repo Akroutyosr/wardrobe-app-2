@@ -1,4 +1,4 @@
-# Twinish — Digital Wardrobe Twin 💅🏻
+# Twinish the Digital Wardrobe Twin 💅🏻
 
 Turn your closet into a digital twin: every item tagged and understood, outfits
 generated from what you actually own, a shopping assistant for "should I buy
