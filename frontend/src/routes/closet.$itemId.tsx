@@ -148,13 +148,18 @@ function ItemDetail() {
         )}
       </div>
 
-      <section className="kraft relative overflow-hidden rounded-3xl p-4 pt-7">
+      <div className="md:flex md:flex-row md:items-start md:gap-10">
+      <section className="kraft relative overflow-hidden rounded-3xl p-4 pt-7 md:min-w-0 md:flex-1">
         <WashiTape className="-right-7 top-4 w-32 rotate-[20deg]" />
         <p className="handwritten absolute left-6 top-1 text-3xl">no. {item.id}</p>
 
         <div className="relative">
           <div className="polaroid animate-print p-2.5">
-            <img src={item.image} alt={item.name} className="w-full rounded-2xl object-cover" />
+            <img
+              src={item.image}
+              alt={item.name}
+              className="w-full rounded-2xl object-cover md:w-1/2 md:max-w-sm"
+            />
             <p className="handwritten px-1 pt-2 text-2xl leading-none">{item.name}</p>
           </div>
           <Callout n={1} className="absolute -left-2 -top-2" />
@@ -187,9 +192,10 @@ function ItemDetail() {
         </div>
       </section>
 
-      <p className="handwritten mt-4 text-2xl leading-snug text-foreground/80">{item.note}</p>
+      <div className="mt-4 md:mt-0 md:min-w-0 md:flex-1">
+        <p className="handwritten text-2xl leading-snug text-foreground/80">{item.note}</p>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
         <Badge tone="primary">{item.color}</Badge>
         <Badge tone="lilac">{item.formality}</Badge>
         {item.season.map((s) => (
@@ -204,6 +210,8 @@ function ItemDetail() {
         <span>worn {item.worn}×</span>
         <span>in {related.length} looks</span>
         <span>great value / wear</span>
+      </div>
+      </div>
       </div>
 
       {related.length > 0 && (

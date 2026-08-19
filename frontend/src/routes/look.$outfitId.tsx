@@ -122,8 +122,9 @@ function LookPage() {
         </button>
       )}
 
-      {/* binder page */}
-      <section className="kraft animate-print relative overflow-hidden rounded-3xl p-4 pt-8">
+      {/* binder page + right-hand panel */}
+      <div className="md:flex md:flex-row md:items-start md:gap-10">
+        <section className="kraft animate-print relative overflow-hidden rounded-3xl p-4 pt-8 md:min-w-0 md:flex-1">
         <WashiTape className="-left-6 top-4 w-36 -rotate-[18deg]" />
         <p className="handwritten absolute left-8 top-2 z-30 text-4xl text-foreground">Look</p>
         <span className="absolute right-0 top-6 z-20 rounded-l-lg bg-card px-2 py-1 font-mono text-[0.6rem] font-bold tracking-widest [writing-mode:vertical-rl]">
@@ -162,8 +163,9 @@ function LookPage() {
         <ArrowNote className="mt-2">{extra.handNote}</ArrowNote>
       </section>
 
-      {/* the tapped callout's detail card */}
-      <section className="paper mt-5 rounded-3xl p-4">
+      {/* the tapped callout's detail card + rating */}
+      <div className="mt-5 space-y-4 md:mt-0 md:w-[22rem] md:min-w-0 lg:w-1/3">
+      <section className="paper rounded-3xl p-4">
         <p className="font-mono text-[0.65rem] uppercase tracking-[0.25em] text-muted-foreground">
           callout {active + 1} of {items.length}
         </p>
@@ -191,7 +193,7 @@ function LookPage() {
         )}
       </section>
 
-      <section className="mt-5 rounded-3xl bg-secondary px-5 py-4 text-center">
+      <section className="rounded-3xl bg-secondary px-5 py-4 text-center">
         <p className="handwritten text-2xl text-secondary-foreground">How did this one feel?</p>
         <div className="mt-2 flex justify-center gap-1.5">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -211,6 +213,8 @@ function LookPage() {
           )}
         </div>
       </section>
+      </div>
+      </div>
     </div>
   );
 }

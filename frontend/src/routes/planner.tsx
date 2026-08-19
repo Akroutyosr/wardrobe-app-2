@@ -125,15 +125,15 @@ function Planner() {
         </p>
       </header>
 
-      <section className="grid grid-cols-2 gap-3">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-7">
         {days.map((day, i) => {
           const plan = planFor(day);
           return (
             <div
               key={day.iso}
               className={`rounded-3xl p-2.5 text-ink shadow-polaroid ${dayColor(i)} ${
-                i === 6 ? "col-span-2" : ""
-              }`}
+                i === 6 ? "col-span-2 md:col-span-1" : ""
+              } ${"md:h-48 md:flex md:flex-col"}`}
             >
               <div className="flex items-baseline justify-between px-1 pb-2">
                 <span className="text-sm font-extrabold uppercase tracking-widest">
@@ -150,7 +150,7 @@ function Planner() {
                   className="tappable block w-full"
                 >
                   <div
-                    className={`grid gap-0.5 overflow-hidden rounded-2xl ${i === 6 ? "grid-cols-4" : "grid-cols-2"}`}
+                    className={`grid gap-0.5 overflow-hidden rounded-2xl ${i === 6 ? "grid-cols-4 md:grid-cols-2" : "grid-cols-2"}`}
                   >
                     {plan.items.slice(0, 4).map((it) => (
                       <img
@@ -169,7 +169,7 @@ function Planner() {
                   onClick={() => setPicking(i)}
                   aria-label={`Add an outfit for ${day.label}`}
                   className={`tappable flex w-full items-center justify-center rounded-2xl bg-card/60 text-ink/60 ${
-                    i === 6 ? "h-20" : "aspect-square"
+                    i === 6 ? "h-20" : "aspect-square md:aspect-auto md:flex-1"
                   }`}
                 >
                   <Plus size={28} strokeWidth={2.6} />

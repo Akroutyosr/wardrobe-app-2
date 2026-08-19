@@ -150,8 +150,8 @@ function FittingRoom() {
 
       {/* Photo step */}
       {stage === "start" && (
-        <div className="space-y-4">
-          <section className="rounded-4xl bg-card p-5 shadow-lift">
+        <div className="space-y-4 lg:flex lg:flex-row lg:items-start lg:gap-8">
+          <section className="rounded-4xl bg-card p-5 shadow-lift lg:sticky lg:top-8 lg:w-1/2 lg:shrink-0">
             <h2 className="text-sm font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
               1 · Your photo
             </h2>
@@ -190,6 +190,7 @@ function FittingRoom() {
             )}
           </section>
 
+          <div className="space-y-4 lg:mt-0 lg:min-w-0 lg:flex-1">
           <section className="rounded-4xl bg-card p-5 shadow-lift">
             <h2 className="text-sm font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
               2 · Pick the look
@@ -251,6 +252,7 @@ function FittingRoom() {
           >
             <Shirt size={17} /> Try it on
           </button>
+        </div>
         </div>
       )}
 

@@ -131,8 +131,8 @@ function Today() {
   const shuffle = () => setIndex((i) => i + 1);
 
   return (
-    <div className="animate-float-in">
-      <header className="mb-4 flex items-center justify-between">
+    <div className="animate-float-in lg:mx-auto lg:grid lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:gap-8">
+      <header className="mb-4 flex items-center justify-between lg:col-span-2">
         <div>
           <p className="display text-3xl">Twinish</p>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -145,7 +145,7 @@ function Today() {
       </header>
 
       {/* Weather card with the outfit popping in below it */}
-      <section className="relative overflow-hidden rounded-4xl bg-card shadow-lift">
+      <section className="relative overflow-hidden rounded-4xl bg-card shadow-lift lg:sticky lg:top-8">
         <Confetti fire={fire} />
 
         <div className="bg-gradient-to-b from-sky to-sky/70 px-5 pb-6 pt-7 text-white">
@@ -224,8 +224,10 @@ function Today() {
         </div>
       </section>
 
-      {/* colour-blocked stat pills */}
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      {/* second column on lg: stats, score, quick links */}
+      <div className="lg:min-w-0">
+        {/* colour-blocked stat pills */}
+        <div className="mt-4 grid grid-cols-3 gap-2 lg:mt-0">
         <div className="rounded-2xl bg-blossom px-3 py-3 text-ink">
           <p className="text-xl font-extrabold leading-none">{closet.length}</p>
           <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">items</p>
@@ -307,6 +309,7 @@ function Today() {
           <span className="display block text-2xl">Week ahead</span>
           <span className="mt-1 block text-xs font-bold opacity-75">Plan and rate your looks</span>
         </Link>
+      </div>
       </div>
     </div>
   );

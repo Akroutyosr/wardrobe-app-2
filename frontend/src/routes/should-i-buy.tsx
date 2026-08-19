@@ -133,7 +133,7 @@ function ShouldIBuy() {
       )}
 
       {stage === "verdict" && (
-        <div className="space-y-5">
+        <div className="w-full space-y-5 md:mx-auto md:max-w-md">
           <div className="receipt animate-print relative px-6 py-7">
             <div className="text-center">
               <p className="display text-3xl">Twinish</p>

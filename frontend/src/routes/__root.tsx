@@ -136,9 +136,35 @@ const nav = [
   { to: "/quiz", label: "Quiz", icon: Sparkles },
 ] as const;
 
+function Sidebar() {
+  return (
+    <aside className="fixed left-0 top-0 z-40 hidden h-full w-56 flex-col border-r border-border bg-card/70 px-4 py-6 backdrop-blur md:flex">
+      <Link to="/" className="display px-2 text-3xl">
+        Twinish
+      </Link>
+      <p className="px-2 font-mono text-[0.6rem] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+        your closet, but a game
+      </p>
+      <nav className="mt-8 flex flex-col gap-1">
+        {nav.map(({ to, label, icon: Icon }) => (
+          <Link
+            key={to}
+            to={to}
+            activeOptions={{ exact: to === "/" }}
+            className="tappable flex items-center gap-3 rounded-full px-3 py-2.5 text-sm font-bold text-muted-foreground hover:bg-[#FAA4B5]/20 hover:text-foreground data-[status=active]:bg-blush data-[status=active]:text-primary"
+          >
+            <Icon size={19} strokeWidth={2.2} />
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
 function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[30rem] -translate-x-1/2 px-3 pb-3">
+    <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[30rem] -translate-x-1/2 px-3 pb-3 md:hidden">
       <div className="flex items-center justify-between rounded-4xl border border-border bg-card/95 px-2 py-2 shadow-lift backdrop-blur">
         {nav.map(({ to, label, icon: Icon }) => (
           <Link
@@ -161,8 +187,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="mx-auto min-h-screen w-full max-w-[30rem] px-5 pt-6 pb-28">
-        <Outlet />
+      <Sidebar />
+      <div className="mx-auto min-h-screen w-full max-w-[30rem] px-5 pt-6 pb-28 md:ml-56 md:max-w-none md:px-8 md:pb-16">
+        <div className="mx-auto w-full max-w-screen-xl">
+          <Outlet />
+        </div>
       </div>
       <BottomNav />
     </QueryClientProvider>

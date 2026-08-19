@@ -107,13 +107,13 @@ function Closet() {
           </p>
         </div>
       ) : (
-        <div className="columns-2 gap-3 [column-fill:balance]">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4 xl:grid-cols-5">
           {items.map((item) => (
             <Link
               key={item.id}
               to="/closet/$itemId"
               params={{ itemId: item.id }}
-              className="tappable polaroid mb-3 block break-inside-avoid p-2"
+              className="tappable polaroid block p-2 transition-transform md:hover:scale-[1.02] md:hover:shadow-lg md:cursor-pointer"
             >
               <img
                 src={item.image}
