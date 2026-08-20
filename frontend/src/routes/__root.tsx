@@ -188,7 +188,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Sidebar />
-      <div className="mx-auto min-h-screen w-full max-w-[30rem] px-5 pt-6 pb-28 md:ml-56 md:max-w-none md:px-8 md:pb-16">
+      <div className="mx-auto min-h-screen w-full max-w-[30rem] px-5 pt-6 pb-28 md:ml-56 md:max-w-none md:w-auto md:px-8 md:pb-16">
         <div className="mx-auto w-full max-w-screen-xl">
           <Outlet />
         </div>
