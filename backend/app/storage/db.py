@@ -126,6 +126,16 @@ CREATE TABLE IF NOT EXISTS tryon_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_fitting_device ON fitting_room_photos(device_id);
+
+-- The latest completed quiz result: named personality + axis scores + the
+-- shopping recommendations, plus when it was taken so the frontend can drive
+-- the 30-day retake cadence. One roll per quiz run (append-only history).
+CREATE TABLE IF NOT EXISTS quiz_results (
+    id SERIAL PRIMARY KEY,
+    personality_name TEXT,
+    result_json TEXT,
+    taken_at TEXT
+);
 """
 
 
@@ -721,3 +731,33 @@ def get_wardrobe_dna(device_id: str | None = None) -> dict:
         "underrepresented_categories": underrepresented,
         "color_diversity": len(colors),
     }
+
+
+def save_quiz_result(personality_name: str, result: dict) -> None:
+    """Append one completed quiz result (used by the retake mechanic)."""
+    init_db()
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO quiz_results (personality_name, result_json, taken_at) VALUES (%s, %s, %s)",
+        (personality_name, json.dumps(result), datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_latest_quiz_result() -> dict | None:
+    """The most recent quiz result, or None if the quiz has never been taken."""
+    init_db()
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT personality_name, result_json, taken_at FROM quiz_results"
+        " ORDER BY taken_at DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    try:
+        result = json.loads(row["result_json"])
+    except Exception:
+        result = {}
+    return {**result, "personality_name": row["personality_name"], "taken_at": row["taken_at"]}

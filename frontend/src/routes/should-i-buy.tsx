@@ -9,6 +9,10 @@ import { categoryColor } from "@/lib/palette";
 import candidate from "@/assets/item-blazer.jpg";
 
 export const Route = createFileRoute("/should-i-buy")({
+  validateSearch: (search: { hint?: unknown }) => {
+    const hint = typeof search["hint"] === "string" ? search["hint"] : null;
+    return hint ? { hint } : {};
+  },
   head: () => ({
     meta: [
       { title: "Should I Buy This? · Twinish" },
@@ -30,6 +34,7 @@ export const Route = createFileRoute("/should-i-buy")({
 type Stage = "start" | "loading" | "verdict";
 
 function ShouldIBuy() {
+  const { hint } = Route.useSearch();
   const [stage, setStage] = useState<Stage>("start");
   const [fire, setFire] = useState(0);
   const [verdict, setVerdict] = useState<VerdictResult | null>(null);
@@ -102,6 +107,13 @@ function ShouldIBuy() {
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0])}
           />
+          {hint && (
+            <p className="mb-3 rounded-2xl bg-card px-4 py-3 text-center text-sm font-bold italic text-muted-foreground shadow-polaroid">
+              Cupboard reminder — you came looking for something like a{" "}
+              <span className="text-rose">{hint.toLowerCase()}</span>. Snap what
+              you&apos;re eyeing.
+            </p>
+          )}
           <button
             onClick={() => fileInput.current?.click()}
             className="tappable relative w-full overflow-hidden rounded-4xl bg-rose p-8 text-center text-primary-foreground shadow-lift"

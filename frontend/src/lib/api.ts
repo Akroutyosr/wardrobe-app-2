@@ -114,6 +114,98 @@ export type VerdictResult = {
   new_item: Tags;
 };
 
+// --- Style quiz (Phases A-D) -------------------------------------------------
+
+/** Real-wardrobe breakdown returned by /api/quiz/wardrobe-dna. */
+export type WardrobeDNA = {
+  total_items: number;
+  category_breakdown: Record<string, number>;
+  top_colors: string[];
+  pattern_breakdown: Record<string, number>;
+  avg_formality: number;
+  season_breakdown: Record<string, number>;
+  missing_categories: string[];
+  underrepresented_categories: string[];
+  color_diversity: number;
+};
+
+export type AxisScores = {
+  casual_formal: number; // 0-100
+  minimal_maximal: number;
+  timeless_trendy: number;
+};
+
+export type ShoppingRecommendation = {
+  item_type: string;
+  reason: string;
+  suggested_color?: string;
+  priority: string; // "high" | "medium" | "low"
+};
+
+/** Structured personality produced by /api/quiz/analyze. */
+export type PersonalityResult = {
+  personality_name: string;
+  personality_tagline: string;
+  personality_description: string;
+  axis_scores: AxisScores;
+  wardrobe_strengths: string[];
+  wardrobe_gaps: string[];
+  shopping_recommendations: ShoppingRecommendation[];
+};
+
+/** A persisted quiz result (Phase F retake mechanic). */
+export type QuizResultRecord = PersonalityResult & { taken_at: string };
+
+/** Raw items (not reduced to ClosetItem) — the quiz builds its deck from these. */
+export async function fetchApiItems(): Promise<ApiItem[]> {
+  return fetchJson<ApiItem[]>("/api/items");
+}
+
+export async function fetchWardrobeDNA(): Promise<WardrobeDNA | null> {
+  try {
+    return await fetchJson<WardrobeDNA>("/api/quiz/wardrobe-dna");
+  } catch {
+    return null;
+  }
+}
+
+export async function analyzeQuiz(
+  answers: {
+    question_id: string;
+    chosen_option: string;
+    formality?: number;
+    pattern?: string;
+    color_family?: string;
+    axis_signals?: Record<string, number>;
+  }[],
+): Promise<PersonalityResult> {
+  return fetchJson<PersonalityResult>(
+    "/api/quiz/analyze",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ answers }),
+    },
+    GENERATE_TIMEOUT_MS,
+  );
+}
+
+export async function saveQuizResult(result: PersonalityResult): Promise<void> {
+  await fetchJson("/api/quiz/result", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ personality_name: result.personality_name, result }),
+  });
+}
+
+export async function fetchQuizResult(): Promise<QuizResultRecord | null> {
+  try {
+    return await fetchJson<QuizResultRecord>("/api/quiz/result");
+  } catch {
+    return null;
+  }
+}
+
 // --- Adapters to the frontend's existing shapes -----------------------------
 
 export function toClosetItem(a: ApiItem): ClosetItem {

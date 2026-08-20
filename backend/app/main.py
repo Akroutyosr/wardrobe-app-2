@@ -48,6 +48,7 @@ from app.storage.db import (
     get_generated_outfit,
     get_wardrobe_dna,
     get_item,
+    get_latest_quiz_result,
     get_outfits_for_week,
     get_recent_outfit_deck,
     get_saved_outfits,
@@ -59,6 +60,7 @@ from app.storage.db import (
     rate_generated_outfit,
     save_fitting_photo,
     save_quiz_preference,
+    save_quiz_result,
     set_outfit_saved,
     update_tryon_session,
 )
@@ -370,6 +372,24 @@ def api_quiz_analyze(req: QuizSubmission) -> dict:
         if answer.get("formality") and answer.get("pattern") and answer.get("color_family"):
             save_quiz_preference(answer["formality"], answer["pattern"], answer["color_family"])
     return result
+
+
+class QuizResultRequest(BaseModel):
+    personality_name: str
+    result: dict
+
+
+@app.post("/api/quiz/result")
+def api_save_quiz_result(req: QuizResultRequest) -> dict:
+    """Persist a completed personality result (drives the 30-day retake cadence)."""
+    save_quiz_result(req.personality_name, req.result)
+    return {"status": "ok"}
+
+
+@app.get("/api/quiz/result")
+def api_get_quiz_result() -> dict | None:
+    """The most recent quiz result, or null if never taken."""
+    return get_latest_quiz_result()
 
 
 class RateOutfitRequest(BaseModel):
