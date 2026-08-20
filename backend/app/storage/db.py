@@ -671,3 +671,53 @@ def get_style_preference_summary() -> dict | None:
         "preferred_pattern": Counter(patterns).most_common(1)[0][0],
         "preferred_color_family": Counter(colors).most_common(1)[0][0],
     }
+
+
+def get_wardrobe_dna(device_id: str | None = None) -> dict:
+    """Analyzes the real wardrobe to produce a DNA breakdown
+    used both for personalizing quiz questions and generating the final result.
+
+    `device_id` is accepted for signature symmetry with other per-device
+    storage calls, but items are shared across the app (no per-device column),
+    so the analysis always reflects the whole wardrobe.
+    """
+    init_db()
+    conn = get_connection()
+    items = [dict(r) for r in conn.execute("SELECT * FROM items").fetchall()]
+    conn.close()
+
+    from collections import Counter
+    import json
+
+    categories = Counter(i["category"] for i in items)
+    colors = Counter(i["primary_color"] for i in items)
+    patterns = Counter(i["pattern"] for i in items)
+    formalities = [i["formality"] for i in items if i["formality"]]
+    seasons_flat = []
+    for i in items:
+        try:
+            seasons_flat.extend(json.loads(i["seasons"] or "[]"))
+        except Exception:
+            pass
+    seasons = Counter(seasons_flat)
+
+    avg_formality = round(sum(formalities) / len(formalities), 1) if formalities else 3
+    top_colors = [c for c, _ in colors.most_common(5)]
+    missing_categories = [
+        c
+        for c in ["top", "bottom", "outerwear", "shoes", "accessory", "dress"]
+        if categories.get(c, 0) == 0
+    ]
+    underrepresented = [c for c, n in categories.items() if n == 1]
+
+    return {
+        "total_items": len(items),
+        "category_breakdown": dict(categories),
+        "top_colors": top_colors,
+        "pattern_breakdown": dict(patterns),
+        "avg_formality": avg_formality,
+        "season_breakdown": dict(seasons),
+        "missing_categories": missing_categories,
+        "underrepresented_categories": underrepresented,
+        "color_diversity": len(colors),
+    }

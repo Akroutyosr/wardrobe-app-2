@@ -38,6 +38,7 @@ from app.api import (
 from app.agent.orchestrator import evaluate_purchase
 from app.recommend.generate import generate_outfits
 from app.recommend.retrieve import retrieve_candidates
+from app.recommend.quiz_analysis import analyze_quiz
 from app.storage.db import (
     REPO_ROOT,
     create_tryon_session,
@@ -45,6 +46,7 @@ from app.storage.db import (
     delete_item,
     get_distinct_colors,
     get_generated_outfit,
+    get_wardrobe_dna,
     get_item,
     get_outfits_for_week,
     get_recent_outfit_deck,
@@ -343,6 +345,31 @@ class QuizPreferenceRequest(BaseModel):
 def api_quiz_preference(req: QuizPreferenceRequest):
     save_quiz_preference(req.formality, req.pattern, req.color_family)
     return {"status": "ok"}
+
+
+@app.get("/api/quiz/wardrobe-dna")
+def api_wardrobe_dna() -> dict:
+    """Real-wardrobe breakdown used to personalize quiz questions and
+    ground the final personality analysis in what the user actually owns."""
+    return get_wardrobe_dna()
+
+
+class QuizSubmission(BaseModel):
+    answers: list[dict]  # [{question_id, chosen_option, formality, pattern, color_family, axis_signals}]
+
+
+@app.post("/api/quiz/analyze")
+def api_quiz_analyze(req: QuizSubmission) -> dict:
+    """Combine quiz answers + wardrobe DNA into a named style personality
+    with axis scores, strengths/gaps and 3 prioritized shopping
+    recommendations."""
+    dna = get_wardrobe_dna()
+    result = analyze_quiz(req.answers, dna)
+    # Persist preference signal (reuses existing table)
+    for answer in req.answers:
+        if answer.get("formality") and answer.get("pattern") and answer.get("color_family"):
+            save_quiz_preference(answer["formality"], answer["pattern"], answer["color_family"])
+    return result
 
 
 class RateOutfitRequest(BaseModel):
