@@ -135,7 +135,10 @@ function Today() {
       <header className="mb-4 flex items-center justify-between lg:col-span-2">
         <div>
           <p className="display text-3xl">Twinish</p>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <p
+            suppressHydrationWarning
+            className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground"
+          >
             {today}
           </p>
         </div>

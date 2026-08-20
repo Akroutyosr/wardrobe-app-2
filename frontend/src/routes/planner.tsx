@@ -119,7 +119,10 @@ function Planner() {
     <div className="animate-float-in">
       <header className="mb-5">
         <h1 className="display text-4xl">Outfits of the Week</h1>
-        <p className="mt-1 text-[0.7rem] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+        <p
+          suppressHydrationWarning
+          className="mt-1 text-[0.7rem] font-bold uppercase tracking-[0.22em] text-muted-foreground"
+        >
           {planned} of 7 days planned · {days[0]!.dateLabel}–{days[6]!.dateLabel}
           {weekRows === undefined && weekLoading ? " · loading…" : ""}
         </p>
@@ -136,10 +139,16 @@ function Planner() {
               } ${"md:h-48 md:flex md:flex-col"}`}
             >
               <div className="flex items-baseline justify-between px-1 pb-2">
-                <span className="text-sm font-extrabold uppercase tracking-widest">
+                <span
+                  suppressHydrationWarning
+                  className="text-sm font-extrabold uppercase tracking-widest"
+                >
                   {day.label}
                 </span>
-                <span className="font-mono text-[0.65rem] font-bold opacity-70">
+                <span
+                  suppressHydrationWarning
+                  className="font-mono text-[0.65rem] font-bold opacity-70"
+                >
                   {day.dateLabel}
                 </span>
               </div>
