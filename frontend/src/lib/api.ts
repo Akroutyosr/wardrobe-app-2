@@ -237,6 +237,25 @@ export function toOutfit(o: ApiOutfit, known: ClosetItem[]): Outfit {
 
 // --- Wardrobe ---------------------------------------------------------------
 
+export type WardrobeStats = {
+  total_items: number;
+  worn_this_month: number;
+  streak: number;
+  versatility_score: number;
+  weekly_change: number;
+  most_worn: Array<{
+    id: string;
+    subcategory: string;
+    primary_color: string;
+    category: string;
+    wear_count: number;
+  }>;
+};
+
+export async function fetchStats(): Promise<WardrobeStats> {
+  return fetchJson<WardrobeStats>("/api/stats");
+}
+
 export async function fetchItems(params?: {
   category?: string;
   season?: string;

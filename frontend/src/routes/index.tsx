@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Shuffle, ArrowRight, Flame, Trophy, Loader2 } from "lucide-react";
 import { extraFor } from "@/lib/twinish-data";
-import { useCloset, useOutfits, useWeather, itemsByIds } from "@/lib/use-wardrobe";
+import { useCloset, useOutfits, useStats, useWeather, itemsByIds } from "@/lib/use-wardrobe";
+import type { WardrobeStats } from "@/lib/api";
 import { weatherEmoji } from "@/lib/weather";
 import type { WeatherNow } from "@/lib/weather";
 import { Confetti } from "@/components/Confetti";
@@ -93,6 +94,15 @@ function Today() {
   const [fire] = useState(0);
   const { data: closet } = useCloset();
   const { data: weather } = useWeather();
+  const STATS_DEFAULT: WardrobeStats = {
+    total_items: 0,
+    worn_this_month: 0,
+    streak: 0,
+    versatility_score: 0,
+    weekly_change: 0,
+    most_worn: [],
+  };
+  const { data: stats = STATS_DEFAULT } = useStats();
   // Pass the live weather into the LLM deck so the generated outfits and their
   // reasoning actually reflect today's real conditions. Generation waits for
   // the weather fetch so we never fire a wasteful empty-context deck first.
@@ -126,8 +136,6 @@ function Today() {
     day: "numeric",
     month: "long",
   }).format(new Date());
-  const leaderboard = [...closet].sort((a, b) => b.worn - a.worn).slice(0, 3);
-
   const shuffle = () => setIndex((i) => i + 1);
 
   return (
@@ -142,9 +150,15 @@ function Today() {
             {today}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-rose px-3.5 py-2 text-sm font-extrabold text-primary-foreground shadow-lift">
-          <Flame size={16} strokeWidth={2.6} /> 6
-        </span>
+        {stats.streak > 0 ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose px-3.5 py-2 text-sm font-extrabold text-primary-foreground shadow-lift">
+            <Flame size={16} strokeWidth={2.6} /> {stats.streak}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-card px-3.5 py-2 text-xs font-bold text-muted-foreground shadow-polaroid">
+            Log an outfit to start your streak ✨
+          </span>
+        )}
       </header>
 
       {/* Weather card with the outfit popping in below it */}
@@ -232,17 +246,17 @@ function Today() {
         {/* colour-blocked stat pills */}
         <div className="mt-4 grid grid-cols-3 gap-2 lg:mt-0">
         <div className="rounded-2xl bg-blossom px-3 py-3 text-ink">
-          <p className="text-xl font-extrabold leading-none">{closet.length}</p>
+          <p className="text-xl font-extrabold leading-none">{stats.total_items}</p>
           <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">items</p>
         </div>
         <div className="rounded-2xl bg-olivine px-3 py-3 text-ink">
           <p className="text-xl font-extrabold leading-none">
-            {closet.reduce((sum, i) => sum + i.worn, 0)}
+            {stats.worn_this_month}
           </p>
-          <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">worn</p>
+          <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">worn / mo</p>
         </div>
         <div className="rounded-2xl bg-rose px-3 py-3 text-primary-foreground">
-          <p className="text-xl font-extrabold leading-none">6🔥</p>
+          <p className="text-xl font-extrabold leading-none">{stats.streak}🔥</p>
           <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">day streak</p>
         </div>
       </div>
@@ -254,8 +268,12 @@ function Today() {
             <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.25em] opacity-70">
               Versatility score
             </p>
-            <p className="mt-1 text-6xl font-extrabold leading-none text-maize">842</p>
-            <p className="mt-1 text-xs font-semibold opacity-75">+38 this week · nice mixing 👏</p>
+            <p className="mt-1 text-6xl font-extrabold leading-none text-maize">{stats.versatility_score}</p>
+            <p className="mt-1 text-xs font-semibold opacity-75">
+              {stats.versatility_score > 0
+                ? `possible outfit combinations from your ${stats.total_items} items`
+                : "Add items to your closet to unlock this"}
+            </p>
           </div>
           <Trophy size={54} className="text-maize" strokeWidth={1.6} />
         </div>
@@ -263,37 +281,29 @@ function Today() {
           <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
             Leaderboard · most worn
           </p>
-          {[
-            {
-              n: 1,
-              name: leaderboard[0]?.name ?? "Fresh White Sneakers",
-              v: `${leaderboard[0]?.worn ?? 31} wears`,
-              c: "bg-olivine",
-            },
-            {
-              n: 2,
-              name: leaderboard[1]?.name ?? "Little Tan Crossbody",
-              v: `${leaderboard[1]?.worn ?? 26} wears`,
-              c: "bg-maize",
-            },
-            {
-              n: 3,
-              name: leaderboard[2]?.name ?? "Sunday Mom Jeans",
-              v: `${leaderboard[2]?.worn ?? 22} wears`,
-              c: "bg-sky",
-            },
-          ].map((r) => (
-            <div
-              key={r.n}
-              className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-ink ${r.c}`}
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-card text-xs font-extrabold">
-                {r.n}
-              </span>
-              <span className="flex-1 truncate text-sm font-bold">{r.name}</span>
-              <span className="font-mono text-[0.7rem] font-bold">{r.v}</span>
-            </div>
-          ))}
+          {stats.most_worn.length > 0 ? (
+            stats.most_worn.map((item, i) => (
+              <div
+                key={item.id}
+                className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-ink ${
+                  ["bg-olivine", "bg-maize", "bg-sky", "bg-blossom", "bg-fawn"][i] ?? "bg-secondary"
+                }`}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-card text-xs font-extrabold">
+                  {i + 1}
+                </span>
+                <span className="flex-1 truncate text-sm font-bold capitalize">
+                  {item.subcategory}
+                  <span className="ml-1 text-xs opacity-60">{item.primary_color}</span>
+                </span>
+                <span className="font-mono text-[0.7rem] font-bold">{item.wear_count}×</span>
+              </div>
+            ))
+          ) : (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Start logging outfits to see your most-worn pieces
+            </p>
+          )}
         </div>
       </section>
 

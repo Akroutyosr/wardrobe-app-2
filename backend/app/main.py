@@ -44,6 +44,8 @@ from app.storage.db import (
     create_tryon_session,
     delete_fitting_photo,
     delete_item,
+    get_connection,
+    get_current_streak,
     get_distinct_colors,
     get_generated_outfit,
     get_wardrobe_dna,
@@ -204,6 +206,35 @@ def health() -> dict:
         "service": "wardrobe-backend",
         "items": item_count,
         "photos_dir": str(PHOTO_DIR),
+    }
+
+
+@app.get("/api/stats")
+def api_stats() -> dict:
+    """Aggregate wardrobe stats: total items, worn-this-month, streak, versatility."""
+    from datetime import date
+    from app.storage.db import get_wardrobe_versatility
+
+    items = list_items()
+    this_month = date.today().strftime("%Y-%m")
+    conn_stats = get_connection()
+    try:
+        rows = conn_stats.execute(
+            "SELECT DISTINCT item_id FROM wear_log WHERE worn_on LIKE %s",
+            (f"{this_month}%",),
+        ).fetchall()
+        worn_this_month = len(rows)
+    finally:
+        conn_stats.close()
+
+    versatility = get_wardrobe_versatility()
+    return {
+        "total_items": len(items),
+        "worn_this_month": worn_this_month,
+        "streak": get_current_streak(),
+        "versatility_score": versatility["versatility_score"],
+        "weekly_change": versatility["weekly_change"],
+        "most_worn": versatility["most_worn"],
     }
 
 

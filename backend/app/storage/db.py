@@ -399,6 +399,97 @@ def get_wear_counts() -> dict[str, int]:
     return counts
 
 
+def get_current_streak() -> int:
+    """
+    Counts consecutive days ending today (UTC) where at least one
+    outfit was worn (has a row in wear_log with a non-null worn_on).
+    Returns 0 if nothing has been logged.
+    """
+    init_db()
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT DISTINCT worn_on::date AS day
+           FROM wear_log
+           WHERE worn_on IS NOT NULL
+           ORDER BY day DESC"""
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        return 0
+
+    from datetime import date, timedelta
+    today = date.today()
+    streak = 0
+    expected = today
+
+    for row in rows:
+        day = row["day"] if isinstance(row["day"], date) else date.fromisoformat(str(row["day"]))
+        if day == expected:
+            streak += 1
+            expected -= timedelta(days=1)
+        elif day < expected:
+            break
+
+    return streak
+
+
+def get_wardrobe_versatility() -> dict:
+    """
+    Computes a real versatility score:
+    - total_combinations: count of item pairs that are formality-compatible
+      and category-complementary (could theoretically be worn together)
+    - weekly_change: how many outfits were rated in the last 7 days
+    - most_worn: top 5 items by wear_log frequency
+    """
+    init_db()
+    conn = get_connection()
+    items = [dict(r) for r in conn.execute("SELECT id, category, formality FROM items").fetchall()]
+
+    COMPLEMENTARY = {
+        "top": {"bottom", "shoes", "outerwear", "accessory"},
+        "bottom": {"top", "shoes", "outerwear", "accessory"},
+        "dress": {"shoes", "outerwear", "accessory"},
+        "outerwear": {"top", "bottom", "dress", "shoes", "accessory"},
+        "shoes": {"top", "bottom", "dress", "outerwear", "accessory"},
+        "accessory": {"top", "bottom", "dress", "outerwear", "shoes"},
+    }
+
+    combinations = 0
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            a, b = items[i], items[j]
+            if (
+                abs((a["formality"] or 3) - (b["formality"] or 3)) <= 1
+                and b["category"] in COMPLEMENTARY.get(a["category"], set())
+            ):
+                combinations += 1
+
+    from datetime import date, timedelta
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
+    new_this_week = conn.execute(
+        "SELECT COUNT(DISTINCT outfit_id) FROM wear_log WHERE worn_on >= %s",
+        (week_ago,),
+    ).fetchone()[0]
+
+    top_rows = conn.execute(
+        """SELECT i.id, i.subcategory, i.primary_color, i.category,
+                  COUNT(wl.id) as wear_count
+           FROM items i
+           JOIN wear_log wl ON wl.item_id = i.id
+           GROUP BY i.id, i.subcategory, i.primary_color, i.category
+           ORDER BY wear_count DESC
+           LIMIT 5"""
+    ).fetchall()
+    conn.close()
+
+    return {
+        "versatility_score": combinations,
+        "weekly_change": new_this_week,
+        "most_worn": [dict(r) for r in top_rows],
+    }
+
+
 def get_distinct_colors() -> list[str]:
     """Raw distinct primary/secondary color values across the wardrobe."""
     init_db()

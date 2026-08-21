@@ -6,8 +6,10 @@ import {
   fetchItem,
   fetchItems,
   fetchOutfit,
-  generateOutfits,
   fetchSavedOutfits,
+  fetchStats,
+  generateOutfits,
+  type WardrobeStats,
 } from "./api";
 import { fetchWeather, getLocation } from "./weather";
 
@@ -109,6 +111,23 @@ export function useColors() {
     placeholderData: fallbackColors,
     staleTime: 10 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
+  });
+}
+
+/** Aggregate wardrobe stats: total items, worn-this-month, streak, versatility. */
+export function useStats() {
+  return useQuery({
+    queryKey: ["stats"],
+    queryFn: fetchStats,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: {
+      total_items: 0,
+      worn_this_month: 0,
+      streak: 0,
+      versatility_score: 0,
+      weekly_change: 0,
+      most_worn: [],
+    } satisfies WardrobeStats,
   });
 }
 
