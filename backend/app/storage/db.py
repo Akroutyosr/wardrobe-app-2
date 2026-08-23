@@ -468,9 +468,9 @@ def get_wardrobe_versatility() -> dict:
     from datetime import date, timedelta
     week_ago = (date.today() - timedelta(days=7)).isoformat()
     new_this_week = conn.execute(
-        "SELECT COUNT(DISTINCT outfit_id) FROM wear_log WHERE worn_on >= %s",
+        "SELECT COUNT(DISTINCT outfit_id) AS n FROM wear_log WHERE worn_on >= %s",
         (week_ago,),
-    ).fetchone()[0]
+    ).fetchone()["n"]
 
     top_rows = conn.execute(
         """SELECT i.id, i.subcategory, i.primary_color, i.category,
@@ -587,6 +587,80 @@ def get_recent_rated_outfits(limit: int = 5) -> list[dict]:
 
     conn.close()
     return results
+
+
+def suggest_todays_outfit() -> dict | None:
+    """
+    Returns the most likely outfit for today based on historical
+    day-of-week patterns in wear_log. Returns None if no history exists.
+    Only looks at items that have been worn on the same day of week before.
+    """
+    init_db()
+    from datetime import date
+    today = date.today()
+    day_name = today.strftime("%A")  # "Monday", "Tuesday", etc.
+
+    conn = get_connection()
+
+    # Check if today already has a logged outfit -- if so, return it
+    today_str = today.isoformat()
+    existing = conn.execute(
+        """SELECT DISTINCT outfit_id FROM wear_log
+           WHERE worn_on IS NOT NULL AND worn_on::date::text = %s LIMIT 1""",
+        (today_str,),
+    ).fetchone()
+
+    if existing:
+        outfit_id = existing["outfit_id"]
+        qualified = "i." + ITEM_COLUMNS.replace(", ", ", i.")
+        items_rows = conn.execute(
+            f"""SELECT {qualified} FROM items i
+               JOIN wear_log wl ON wl.item_id = i.id
+               WHERE wl.outfit_id = %s""",
+            (outfit_id,),
+        ).fetchall()
+        conn.close()
+        return {
+            "already_logged": True,
+            "outfit_id": outfit_id,
+            "items": [_parse(dict(r)) for r in items_rows],
+        }
+
+    # Find most-worn items on the same day of week historically
+    rows = conn.execute(
+        """SELECT item_id, COUNT(*) as freq
+           FROM wear_log
+           WHERE worn_on IS NOT NULL AND TRIM(TO_CHAR(worn_on::date, 'Day')) = %s
+           GROUP BY item_id
+           ORDER BY freq DESC
+           LIMIT 12""",
+        (day_name,),
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        return None
+
+    item_ids = [r["item_id"] for r in rows]
+    items = [get_item(i) for i in item_ids]
+    items = [i for i in items if i is not None]
+
+    # Pick one per category to assemble a plausible outfit
+    by_category = {}
+    for item in items:
+        cat = item["category"]
+        if cat not in by_category:
+            by_category[cat] = item
+
+    suggested = list(by_category.values())
+    if not suggested:
+        return None
+
+    return {
+        "already_logged": False,
+        "items": suggested,
+        "confidence_label": f"based on your typical {day_name} outfits",
+    }
 
 
 def save_generated_outfit(item_ids: list[str], reasoning: str, context: dict) -> str:

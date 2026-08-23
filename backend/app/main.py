@@ -53,6 +53,7 @@ from app.storage.db import (
     get_latest_quiz_result,
     get_outfits_for_week,
     get_recent_outfit_deck,
+    get_recent_rated_outfits,
     get_saved_outfits,
     get_saved_fitting_photo,
     get_tryon_session,
@@ -60,10 +61,12 @@ from app.storage.db import (
     list_items,
     log_outfit_wear,
     rate_generated_outfit,
+    save_generated_outfit,
     save_fitting_photo,
     save_quiz_preference,
     save_quiz_result,
     set_outfit_saved,
+    suggest_todays_outfit,
     update_tryon_session,
 )
 from app.storage.ingest import ingest_item
@@ -448,6 +451,58 @@ def api_colors() -> list[str]:
 def api_feedback(req: FeedbackRequest) -> dict:
     outfit_id = log_outfit_wear(req.item_ids, req.rating, req.worn_on)
     return {"outfit_id": outfit_id, "item_ids": req.item_ids, "rating": req.rating}
+
+
+@app.get("/api/wear-log/suggest-today")
+def api_suggest_today():
+    result = suggest_todays_outfit()
+    if result is None:
+        return {"already_logged": False, "items": [], "confidence_label": None}
+    return result
+
+
+class QuickLogRequest(BaseModel):
+    item_ids: list[str]
+    rating: int = Field(ge=1, le=5)
+    worn_on: str | None = None  # defaults to today
+
+
+@app.post("/api/wear-log/quick-log")
+def api_quick_log(req: QuickLogRequest) -> dict:
+    """
+    Logs a worn outfit from the quick-log flow. Creates a new generated_outfit
+    entry so the look has a stable ID and appears in the Planner, then logs
+    it in wear_log with the given rating. rate_generated_outfit() handles both
+    the rating update and the wear_log rows (re-logging here would double-count
+    every item's wear frequency).
+    """
+    from datetime import date
+
+    worn_on = req.worn_on or date.today().isoformat()
+
+    # Validate all item_ids exist
+    items = [get_item(i) for i in req.item_ids]
+    missing = [req.item_ids[i] for i, item in enumerate(items) if item is None]
+    if missing:
+        raise HTTPException(400, f"Unknown item ids: {missing}")
+
+    # Create a generated_outfit entry so it appears in the Planner
+    outfit_id = save_generated_outfit(
+        item_ids=req.item_ids,
+        reasoning="Logged via quick-log",
+        context={"source": "quick_log", "worn_on": worn_on},
+    )
+
+    # Rate it (also writes the wear_log rows for every item)
+    rate_generated_outfit(outfit_id, req.rating, worn_on)
+
+    return {"outfit_id": outfit_id, "status": "logged"}
+
+
+@app.get("/api/wear-log/recent")
+def api_wear_log_recent(limit: int = 10) -> dict:
+    """Most recent rated outfits with their items' details, newest first."""
+    return {"outfits": get_recent_rated_outfits(limit=min(limit, 50))}
 
 
 @app.post("/api/items/upload")

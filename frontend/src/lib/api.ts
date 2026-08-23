@@ -332,6 +332,36 @@ export async function rateOutfit(outfitId: string, rating: number, wornOn?: stri
   });
 }
 
+// --- Daily habit loop (quick log) ---------------------------------------------
+
+/** Auto-suggestion for today, built from day-of-week wear patterns. */
+export type SuggestedOutfit = {
+  already_logged: boolean;
+  outfit_id?: string;
+  items: ApiItem[];
+  confidence_label?: string | null;
+};
+
+export async function fetchSuggestedOutfit(): Promise<SuggestedOutfit | null> {
+  try {
+    return await fetchJson<SuggestedOutfit>("/api/wear-log/suggest-today");
+  } catch {
+    return null; // suggestion is best-effort; the nudge still shows
+  }
+}
+
+/** Log what you wore right now (creates a stable outfit id + wear rows). */
+export async function quickLogWear(
+  itemIds: string[],
+  rating: number,
+): Promise<{ outfit_id: string }> {
+  return fetchJson<{ outfit_id: string }>("/api/wear-log/quick-log", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ item_ids: itemIds, rating }),
+  });
+}
+
 /** Save (favorite) a generated outfit so it survives reloads. */
 export async function saveOutfit(outfitId: string): Promise<void> {
   await fetchJson(`/api/outfits/${encodeURIComponent(outfitId)}/save`, { method: "POST" });

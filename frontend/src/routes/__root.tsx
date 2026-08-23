@@ -7,11 +7,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Home, Shirt, CalendarDays, Sparkles, ShoppingBag, Ruler } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { QuickLog } from "@/components/QuickLog";
 
 function NotFoundComponent() {
   return (
@@ -184,6 +185,7 @@ function BottomNav() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -193,6 +195,16 @@ function RootComponent() {
           <Outlet />
         </div>
       </div>
+      {/* Floating quick-log button: above the bottom nav on mobile, above the
+          content edge on desktop (where the bottom nav is hidden). */}
+      <button
+        onClick={() => setQuickLogOpen(true)}
+        aria-label="Log today's outfit"
+        className="tappable fixed right-4 bottom-20 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-rose text-2xl text-primary-foreground shadow-lift md:right-8 md:bottom-8"
+      >
+        👗
+      </button>
+      <QuickLog isOpen={quickLogOpen} onClose={() => setQuickLogOpen(false)} />
       <BottomNav />
     </QueryClientProvider>
   );

@@ -8,6 +8,9 @@ import { weatherEmoji } from "@/lib/weather";
 import type { WeatherNow } from "@/lib/weather";
 import { Confetti } from "@/components/Confetti";
 import { PlateCard } from "@/components/plate";
+import { QuickLog } from "@/components/QuickLog";
+import { dismissNudgeToday, markLoggedToday, shouldShowNudge } from "@/lib/habit-nudge";
+import { fetchSuggestedOutfit } from "@/lib/api";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -92,6 +95,23 @@ function weatherNotes(w: WeatherNow): string {
 function Today() {
   const [index, setIndex] = useState(0);
   const [fire] = useState(0);
+  // Daily habit nudge: server truth (already logged today?) wins over the
+  // local flag, so a log made on another device also silences this.
+  const [showNudge, setShowNudge] = useState(false);
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
+  const [suggestedItems, setSuggestedItems] = useState<string[]>([]);
+  useEffect(() => {
+    setShowNudge(shouldShowNudge());
+    fetchSuggestedOutfit().then((data) => {
+      if (!data) return;
+      if (data.already_logged) {
+        markLoggedToday();
+        setShowNudge(false);
+      } else if (data.items?.length > 0) {
+        setSuggestedItems(data.items.map((i) => i.id));
+      }
+    });
+  }, []);
   const { data: closet } = useCloset();
   const { data: weather } = useWeather();
   const STATS_DEFAULT: WardrobeStats = {
@@ -160,6 +180,38 @@ function Today() {
           </span>
         )}
       </header>
+
+      {showNudge && (
+        <div className="mb-4 flex items-start justify-between gap-3 rounded-4xl border border-rose/40 bg-blush px-4 py-3.5 lg:col-span-2">
+          <div>
+            <p className="text-sm font-extrabold text-foreground">
+              {suggestedItems.length > 0
+                ? "Looks like a typical day for you — log your outfit?"
+                : "What did you wear today?"}
+            </p>
+            <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+              Takes 10 seconds. Helps Twinish learn your style.
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              onClick={() => {
+                dismissNudgeToday();
+                setShowNudge(false);
+              }}
+              className="tappable py-1 text-xs font-bold text-muted-foreground"
+            >
+              Later
+            </button>
+            <button
+              onClick={() => setQuickLogOpen(true)}
+              className="tappable rounded-full bg-rose px-3 py-1.5 text-xs font-extrabold text-primary-foreground"
+            >
+              Log it →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Weather card with the outfit popping in below it */}
       <section className="relative overflow-hidden rounded-4xl bg-card shadow-lift lg:sticky lg:top-8">
@@ -324,6 +376,16 @@ function Today() {
         </Link>
       </div>
       </div>
+
+      {/* QuickLog sheet, pre-populated with auto-suggested items */}
+      <QuickLog
+        isOpen={quickLogOpen}
+        onClose={() => {
+          setQuickLogOpen(false);
+          setShowNudge(false);
+        }}
+        preselectedItemIds={suggestedItems}
+      />
     </div>
   );
 }
