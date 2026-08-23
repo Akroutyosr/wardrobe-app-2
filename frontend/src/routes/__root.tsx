@@ -137,49 +137,51 @@ const nav = [
   { to: "/quiz", label: "Quiz", icon: Sparkles },
 ] as const;
 
-function Sidebar() {
+/**
+ * The one navigation for every screen size: a sticky glass bar with the
+ * Twinish brand on the left and destination pills on the right. Replaces the
+ * old split arrangement (bottom tabs on mobile, sidebar on desktop) so there
+ * is exactly one obvious place to look for navigation.
+ */
+function AppNavbar() {
   return (
-    <aside className="fixed left-0 top-0 z-40 hidden h-full w-56 flex-col border-r border-border bg-card/70 px-4 py-6 backdrop-blur md:flex">
-      <Link to="/" className="display px-2 text-3xl">
-        Twinish
-      </Link>
-      <p className="px-2 font-mono text-[0.6rem] font-bold uppercase tracking-[0.25em] text-muted-foreground">
-        your closet, but a game
-      </p>
-      <nav className="mt-8 flex flex-col gap-1">
-        {nav.map(({ to, label, icon: Icon }) => (
-          <Link
-            key={to}
-            to={to}
-            activeOptions={{ exact: to === "/" }}
-            className="tappable flex items-center gap-3 rounded-full px-3 py-2.5 text-sm font-bold text-muted-foreground hover:bg-[#FAA4B5]/20 hover:text-foreground data-[status=active]:bg-blush data-[status=active]:text-primary"
+    <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-md">
+      <div className="mx-auto flex h-16 w-full max-w-screen-xl items-center justify-between gap-2 px-3 sm:px-5">
+        <Link to="/" aria-label="Twinish home" className="tappable shrink-0">
+          <span className="display block text-[1.4rem] leading-none">Twinish</span>
+          {/* hand-scribbled underline — the app's annotation habit, shrunk into a signature */}
+          <svg
+            viewBox="0 0 100 8"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+            className="mt-1 h-1.5 w-14 text-rose"
           >
-            <Icon size={19} strokeWidth={2.2} />
-            {label}
-          </Link>
-        ))}
-      </nav>
-    </aside>
-  );
-}
+            <path
+              d="M2 6 C 20 2, 35 7, 52 4 S 86 2, 98 5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </Link>
 
-function BottomNav() {
-  return (
-    <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-[30rem] -translate-x-1/2 px-3 pb-3 md:hidden">
-      <div className="flex items-center justify-between rounded-4xl border border-border bg-card/95 px-2 py-2 shadow-lift backdrop-blur">
-        {nav.map(({ to, label, icon: Icon }) => (
-          <Link
-            key={to}
-            to={to}
-            activeOptions={{ exact: to === "/" }}
-            className="tappable group flex flex-1 flex-col items-center gap-0.5 rounded-3xl px-1 py-1.5 text-[0.68rem] font-bold text-muted-foreground data-[status=active]:bg-blush data-[status=active]:text-primary"
-          >
-            <Icon size={20} strokeWidth={2.2} />
-            {label}
-          </Link>
-        ))}
+        <nav className="flex items-center gap-0.5 sm:gap-1" aria-label="Primary">
+          {nav.map(({ to, label, icon: Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              activeOptions={{ exact: to === "/" }}
+              aria-label={label}
+              className="tappable flex items-center gap-1.5 rounded-full px-2 py-2 text-sm font-bold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[status=active]:bg-blush data-[status=active]:text-primary sm:px-3"
+            >
+              <Icon size={19} strokeWidth={2.2} />
+              <span className="hidden md:inline">{label}</span>
+            </Link>
+          ))}
+        </nav>
       </div>
-    </nav>
+    </header>
   );
 }
 
@@ -189,23 +191,21 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Sidebar />
-      <div className="mx-auto min-h-screen w-full max-w-[30rem] px-5 pt-6 pb-28 md:ml-56 md:max-w-none md:w-auto md:px-8 md:pb-16">
+      <AppNavbar />
+      <div className="mx-auto min-h-screen w-full max-w-[30rem] px-5 pt-6 pb-28 md:max-w-screen-xl md:pb-16 md:pl-8 md:pr-8">
         <div className="mx-auto w-full max-w-screen-xl">
           <Outlet />
         </div>
       </div>
-      {/* Floating quick-log button: above the bottom nav on mobile, above the
-          content edge on desktop (where the bottom nav is hidden). */}
+      {/* Floating quick-log button */}
       <button
         onClick={() => setQuickLogOpen(true)}
         aria-label="Log today's outfit"
-        className="tappable fixed right-4 bottom-20 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-rose text-2xl text-primary-foreground shadow-lift md:right-8 md:bottom-8"
+        className="tappable fixed right-4 bottom-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-rose text-2xl text-primary-foreground shadow-lift md:right-8 md:bottom-8"
       >
         👗
       </button>
       <QuickLog isOpen={quickLogOpen} onClose={() => setQuickLogOpen(false)} />
-      <BottomNav />
     </QueryClientProvider>
   );
 }
