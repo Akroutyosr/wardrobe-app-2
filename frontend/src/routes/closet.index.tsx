@@ -115,12 +115,19 @@ function Closet() {
               params={{ itemId: item.id }}
               className="tappable polaroid block p-2 transition-transform md:hover:scale-[1.02] md:hover:shadow-lg md:cursor-pointer"
             >
-              <img
-                src={item.image}
-                alt={item.name}
-                loading="lazy"
-                className="w-full rounded-[0.9rem] object-cover"
-              />
+              <div className="relative">
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  loading="lazy"
+                  className="w-full rounded-[0.9rem] object-cover"
+                />
+                {item.cpw != null && (
+                  <div className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2 py-0.5 text-[0.65rem] font-extrabold text-rose backdrop-blur-sm">
+                    €{item.cpw}/wear
+                  </div>
+                )}
+              </div>
               <div className="flex items-center justify-between gap-1 px-1 pt-2">
                 <p className="truncate text-sm font-bold leading-snug">{item.name}</p>
               </div>

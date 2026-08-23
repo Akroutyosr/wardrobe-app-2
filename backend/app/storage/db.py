@@ -33,7 +33,7 @@ EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 (Chroma default embedding function)
 ITEM_COLUMNS = (
     "id, image_path, category, subcategory, primary_color, secondary_color, "
     "pattern, formality, seasons, fabric_guess, notes, brand, price, "
-    "purchase_date, cutout_path, created_at"
+    "currency, purchase_date, cutout_path, created_at"
 )
 
 SCHEMA = """
@@ -308,6 +308,7 @@ def init_db() -> None:
         # CREATE TABLE IF NOT EXISTS won't add a column to an already-existing
         # items table, so migrate live tables explicitly (Postgres supports this).
         conn.execute("ALTER TABLE items ADD COLUMN IF NOT EXISTS cutout_path TEXT")
+        conn.execute("ALTER TABLE items ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EUR'")
         conn.execute("ALTER TABLE generated_outfits ADD COLUMN IF NOT EXISTS is_saved BOOLEAN DEFAULT FALSE")
         conn.commit()
     finally:
@@ -511,6 +512,107 @@ def get_item(item_id: str) -> dict | None:
     if row is None:
         return None
     return _parse(dict(row))
+
+
+def set_item_price(item_id: str, price: float, currency: str = "EUR") -> None:
+    """Sets or updates the purchase price for a wardrobe item."""
+    init_db()
+    conn = get_connection()
+    conn.execute(
+        "UPDATE items SET price = %s, currency = %s WHERE id = %s",
+        (price, currency, item_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_item_cost_per_wear(item_id: str) -> dict:
+    """
+    Returns wear count, price, and cost-per-wear for one item.
+    cost_per_wear is None if no price is set or item has never been worn.
+    """
+    init_db()
+    conn = get_connection()
+    item = conn.execute(
+        "SELECT id, price, currency FROM items WHERE id = %s", (item_id,)
+    ).fetchone()
+    wear_row = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM wear_log WHERE item_id = %s", (item_id,)
+    ).fetchone()
+    conn.close()
+
+    if item is None:
+        return {"wear_count": 0, "cost_per_wear": None, "price": None}
+
+    wear_count = wear_row["cnt"] if wear_row else 0
+    price = item["price"]
+    currency = item["currency"] or "EUR"
+
+    cost_per_wear = None
+    if price and wear_count > 0:
+        cost_per_wear = round(price / wear_count, 2)
+
+    return {
+        "item_id": item_id,
+        "wear_count": wear_count,
+        "price": price,
+        "currency": currency,
+        "cost_per_wear": cost_per_wear,
+    }
+
+
+def get_wardrobe_cpw_stats() -> dict:
+    """
+    Wardrobe-wide CPW stats for the home screen and shopping agent context.
+    Only includes items that have both a price and at least one wear logged.
+    Single joined query -- one connection for the whole computation instead of
+    one per priced item.
+    """
+    init_db()
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT i.id, i.price, i.currency,
+                  COALESCE(w.cnt, 0) AS wear_count
+           FROM items i
+           LEFT JOIN (
+               SELECT item_id, COUNT(*) AS cnt FROM wear_log GROUP BY item_id
+           ) w ON w.item_id = i.id
+           WHERE i.price IS NOT NULL"""
+    ).fetchall()
+    conn.close()
+
+    cpw_values = []
+    best = {"item_id": None, "cost_per_wear": float("inf")}
+    worst = {"item_id": None, "cost_per_wear": 0}
+    currency = rows[0]["currency"] or "EUR" if rows else "EUR"
+
+    for row in rows:
+        wear_count = row["wear_count"]
+        if not row["price"] or wear_count <= 0:
+            continue
+        cpw = round(row["price"] / wear_count, 2)
+        cpw_values.append(cpw)
+        if cpw < best["cost_per_wear"]:
+            best = {"item_id": row["id"], "cost_per_wear": cpw}
+        if cpw > worst["cost_per_wear"]:
+            worst = {"item_id": row["id"], "cost_per_wear": cpw}
+
+    if not cpw_values:
+        return {
+            "avg_cost_per_wear": None,
+            "items_with_price": 0,
+            "best_value_item_id": None,
+            "worst_value_item_id": None,
+            "currency": currency,
+        }
+
+    return {
+        "avg_cost_per_wear": round(sum(cpw_values) / len(cpw_values), 2),
+        "items_with_price": len(cpw_values),
+        "best_value_item_id": best["item_id"],
+        "worst_value_item_id": worst["item_id"],
+        "currency": currency,
+    }
 
 
 def list_items(category: str | None = None, season: str | None = None) -> list[dict]:

@@ -43,6 +43,14 @@ check_duplicates, or the "versatility_score" number) -- never estimate,
 round, or guess a count from memory. If check_duplicates returned exactly
 one duplicate, say "one" or name that single item, not "a couple" or "two."
 
+COST-PER-WEAR GUIDANCE: If the user provides a price for the new item,
+include a cost-per-wear projection in your verdict using this format:
+"At [price], if you wear it [N] times per year (based on its versatility
+score of [score]), that works out to approximately [price/N]/wear."
+Use the versatility_score divided by 10 as a conservative estimated
+annual wear count (e.g. versatility_score=35 -> estimate 3-4 wears/year).
+Compare this to the user's wardrobe average if one was provided.
+
 Give a final verdict: your response MUST begin with exactly one of
 "Verdict: buy", "Verdict: skip", or "Verdict: maybe" as the first line,
 followed by a short, warm, plain-language justification that references
@@ -66,11 +74,15 @@ def _build_tool() -> types.Tool:
     return types.Tool(function_declarations=declarations)
 
 
-def evaluate_purchase(image_path: str, verbose: bool = True) -> tuple[str, list[dict]]:
+def evaluate_purchase(
+    image_path: str, verbose: bool = True, extra_context: str = ""
+) -> tuple[str, list[dict]]:
     """
     Runs the full agent loop for a prospective purchase photo.
     Returns (final verdict text, list of {name, args, result} for every tool call made) --
     the tool log lets you cross-check the verdict's claims against real numbers.
+    extra_context is appended to the opening prompt (e.g. price + wardrobe
+    average cost-per-wear) so the verdict can reason with it.
     """
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     model_name = os.environ.get("GEMINI_MODEL", "models/gemini-3.1-flash-lite")
@@ -81,7 +93,7 @@ def evaluate_purchase(image_path: str, verbose: bool = True) -> tuple[str, list[
         types.Content(
             role="user",
             parts=[types.Part.from_text(
-                text=f"{SYSTEM_INSTRUCTION}\n\nThe photo is at: {image_path}"
+                text=f"{SYSTEM_INSTRUCTION}\n\nThe photo is at: {image_path}{extra_context}"
             )],
         )
     ]

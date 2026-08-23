@@ -10,7 +10,7 @@ import { Confetti } from "@/components/Confetti";
 import { PlateCard } from "@/components/plate";
 import { QuickLog } from "@/components/QuickLog";
 import { dismissNudgeToday, markLoggedToday, shouldShowNudge } from "@/lib/habit-nudge";
-import { fetchSuggestedOutfit } from "@/lib/api";
+import { currencySymbol, fetchSuggestedOutfit } from "@/lib/api";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -121,6 +121,10 @@ function Today() {
     versatility_score: 0,
     weekly_change: 0,
     most_worn: [],
+    avg_cost_per_wear: null,
+    items_with_price: 0,
+    best_value_item_id: null,
+    currency: "EUR",
   };
   const { data: stats = STATS_DEFAULT } = useStats();
   // Pass the live weather into the LLM deck so the generated outfits and their
@@ -297,84 +301,105 @@ function Today() {
       <div className="lg:min-w-0">
         {/* colour-blocked stat pills */}
         <div className="mt-4 grid grid-cols-3 gap-2 lg:mt-0">
-        <div className="rounded-2xl bg-blossom px-3 py-3 text-ink">
-          <p className="text-xl font-extrabold leading-none">{stats.total_items}</p>
-          <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">items</p>
-        </div>
-        <div className="rounded-2xl bg-olivine px-3 py-3 text-ink">
-          <p className="text-xl font-extrabold leading-none">
-            {stats.worn_this_month}
-          </p>
-          <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">worn / mo</p>
-        </div>
-        <div className="rounded-2xl bg-rose px-3 py-3 text-primary-foreground">
-          <p className="text-xl font-extrabold leading-none">{stats.streak}🔥</p>
-          <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">day streak</p>
-        </div>
-      </div>
-
-      {/* game-stat score */}
-      <section className="mt-4 overflow-hidden rounded-4xl bg-ink text-background shadow-lift">
-        <div className="flex items-center justify-between px-5 py-5">
-          <div>
-            <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.25em] opacity-70">
-              Versatility score
-            </p>
-            <p className="mt-1 text-6xl font-extrabold leading-none text-maize">{stats.versatility_score}</p>
-            <p className="mt-1 text-xs font-semibold opacity-75">
-              {stats.versatility_score > 0
-                ? `possible outfit combinations from your ${stats.total_items} items`
-                : "Add items to your closet to unlock this"}
-            </p>
+          <div className="rounded-2xl bg-blossom px-3 py-3 text-ink">
+            <p className="text-xl font-extrabold leading-none">{stats.total_items}</p>
+            <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">items</p>
           </div>
-          <Trophy size={54} className="text-maize" strokeWidth={1.6} />
+          <div className="rounded-2xl bg-olivine px-3 py-3 text-ink">
+            <p className="text-xl font-extrabold leading-none">{stats.worn_this_month}</p>
+            <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">worn / mo</p>
+          </div>
+          <div className="rounded-2xl bg-rose px-3 py-3 text-primary-foreground">
+            <p className="text-xl font-extrabold leading-none">{stats.streak}🔥</p>
+            <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">day streak</p>
+          </div>
         </div>
-        <div className="space-y-1.5 bg-card px-4 pb-4 pt-3 text-foreground">
-          <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
-            Leaderboard · most worn
-          </p>
-          {stats.most_worn.length > 0 ? (
-            stats.most_worn.map((item, i) => (
-              <div
-                key={item.id}
-                className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-ink ${
-                  ["bg-olivine", "bg-maize", "bg-sky", "bg-blossom", "bg-fawn"][i] ?? "bg-secondary"
-                }`}
-              >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-card text-xs font-extrabold">
-                  {i + 1}
-                </span>
-                <span className="flex-1 truncate text-sm font-bold capitalize">
-                  {item.subcategory}
-                  <span className="ml-1 text-xs opacity-60">{item.primary_color}</span>
-                </span>
-                <span className="font-mono text-[0.7rem] font-bold">{item.wear_count}×</span>
-              </div>
-            ))
-          ) : (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              Start logging outfits to see your most-worn pieces
-            </p>
-          )}
-        </div>
-      </section>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Link
-          to="/should-i-buy"
-          className="tappable rounded-3xl bg-fawn px-4 py-5 text-left text-ink"
-        >
-          <span className="display block text-2xl">Should I buy this?</span>
-          <span className="mt-1 block text-xs font-bold opacity-75">Receipt-style verdict</span>
-        </Link>
-        <Link
-          to="/planner"
-          className="tappable rounded-3xl bg-blossom px-4 py-5 text-left text-ink"
-        >
-          <span className="display block text-2xl">Week ahead</span>
-          <span className="mt-1 block text-xs font-bold opacity-75">Plan and rate your looks</span>
-        </Link>
-      </div>
+        {/* game-stat score: avg cost-per-wear once prices exist, versatility before that */}
+        <section className="mt-4 overflow-hidden rounded-4xl bg-ink text-background shadow-lift">
+          <div className="flex items-center justify-between px-5 py-5">
+            <div>
+              {stats.avg_cost_per_wear != null ? (
+                <>
+                  <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.25em] opacity-70">
+                    Avg cost per wear
+                  </p>
+                  <p className="mt-1 text-6xl font-extrabold leading-none text-maize">
+                    {currencySymbol(stats.currency)}
+                    {stats.avg_cost_per_wear}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold opacity-75">
+                    across {stats.items_with_price} priced{" "}
+                    {stats.items_with_price === 1 ? "piece" : "pieces"} — real wears, not guesses
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.25em] opacity-70">
+                    Versatility score
+                  </p>
+                  <p className="mt-1 text-6xl font-extrabold leading-none text-maize">
+                    {stats.versatility_score}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold opacity-75">
+                    {stats.versatility_score > 0
+                      ? `possible outfit combinations from your ${stats.total_items} items`
+                      : "Add items to your closet to unlock this"}
+                  </p>
+                </>
+              )}
+            </div>
+            <Trophy size={54} className="text-maize" strokeWidth={1.6} />
+          </div>
+          <div className="space-y-1.5 bg-card px-4 pb-4 pt-3 text-foreground">
+            <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
+              Leaderboard · most worn
+            </p>
+            {stats.most_worn.length > 0 ? (
+              stats.most_worn.map((item, i) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-3 rounded-2xl px-3 py-2.5 text-ink ${
+                    ["bg-olivine", "bg-maize", "bg-sky", "bg-blossom", "bg-fawn"][i] ??
+                    "bg-secondary"
+                  }`}
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-card text-xs font-extrabold">
+                    {i + 1}
+                  </span>
+                  <span className="flex-1 truncate text-sm font-bold capitalize">
+                    {item.subcategory}
+                    <span className="ml-1 text-xs opacity-60">{item.primary_color}</span>
+                  </span>
+                  <span className="font-mono text-[0.7rem] font-bold">{item.wear_count}×</span>
+                </div>
+              ))
+            ) : (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Start logging outfits to see your most-worn pieces
+              </p>
+            )}
+          </div>
+        </section>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <Link
+            to="/should-i-buy"
+            className="tappable rounded-3xl bg-fawn px-4 py-5 text-left text-ink"
+          >
+            <span className="display block text-2xl">Should I buy this?</span>
+            <span className="mt-1 block text-xs font-bold opacity-75">Receipt-style verdict</span>
+          </Link>
+          <Link
+            to="/planner"
+            className="tappable rounded-3xl bg-blossom px-4 py-5 text-left text-ink"
+          >
+            <span className="display block text-2xl">Week ahead</span>
+            <span className="mt-1 block text-xs font-bold opacity-75">
+              Plan and rate your looks
+            </span>
+          </Link>
+        </div>
       </div>
 
       {/* QuickLog sheet, pre-populated with auto-suggested items */}

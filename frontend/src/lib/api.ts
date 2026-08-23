@@ -65,6 +65,8 @@ export type ApiItem = {
   fabric_guess: string;
   notes: string;
   worn: number;
+  price?: number | null;
+  cost_per_wear?: number | null;
   distance?: number;
 };
 
@@ -220,6 +222,7 @@ export function toClosetItem(a: ApiItem): ClosetItem {
     formality: a.formality_label ?? String(a.formality),
     worn: a.worn,
     note: a.notes,
+    ...(a.cost_per_wear != null ? { cpw: a.cost_per_wear } : {}),
   };
 }
 
@@ -250,10 +253,52 @@ export type WardrobeStats = {
     category: string;
     wear_count: number;
   }>;
+  avg_cost_per_wear: number | null;
+  items_with_price: number;
+  best_value_item_id: string | null;
+  worst_value_item_id?: string | null;
+  currency: string;
 };
 
 export async function fetchStats(): Promise<WardrobeStats> {
   return fetchJson<WardrobeStats>("/api/stats");
+}
+
+// --- Cost per wear -----------------------------------------------------------
+
+export type CostPerWear = {
+  item_id: string;
+  wear_count: number;
+  price: number | null;
+  currency: string;
+  cost_per_wear: number | null;
+};
+
+const CURRENCY_SYMBOLS: Record<string, string> = { EUR: "€", USD: "$", GBP: "£" };
+
+/** € for the common codes; falls back to the raw code for anything exotic. */
+export function currencySymbol(code: string | undefined | null): string {
+  return CURRENCY_SYMBOLS[code ?? ""] ?? code ?? "€";
+}
+
+export async function setItemPrice(
+  itemId: string,
+  price: number,
+  currency: string = "EUR",
+): Promise<void> {
+  await fetchJson(`/api/items/${encodeURIComponent(itemId)}/price`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ price, currency }),
+  });
+}
+
+export async function fetchItemCpw(itemId: string): Promise<CostPerWear | null> {
+  try {
+    return await fetchJson<CostPerWear>(`/api/items/${encodeURIComponent(itemId)}/cpw`);
+  } catch {
+    return null; // CPW is a nice-to-have on the item card, never a hard failure
+  }
 }
 
 export async function fetchItems(params?: {
@@ -456,9 +501,17 @@ export async function deleteItem(itemId: string): Promise<void> {
 
 // --- Shopping assistant ------------------------------------------------------
 
-export async function shouldIBuy(file: File): Promise<VerdictResult> {
+export async function shouldIBuy(
+  file: File,
+  price?: number,
+  currency: string = "EUR",
+): Promise<VerdictResult> {
   const body = new FormData();
   body.append("upload", file);
+  if (price != null) {
+    body.append("price", price.toString());
+    body.append("currency", currency);
+  }
   // The shopping agent is a multi-round-trip LLM loop (photo tagging +
   // duplicate check + versatility scoring across several Gemini calls), so it
   // needs the same wide window as outfit generation -- the default 15s read

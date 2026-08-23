@@ -48,6 +48,8 @@ from app.storage.db import (
     get_current_streak,
     get_distinct_colors,
     get_generated_outfit,
+    get_item_cost_per_wear,
+    get_wardrobe_cpw_stats,
     get_wardrobe_dna,
     get_item,
     get_latest_quiz_result,
@@ -66,6 +68,7 @@ from app.storage.db import (
     save_quiz_preference,
     save_quiz_result,
     set_outfit_saved,
+    set_item_price,
     suggest_todays_outfit,
     update_tryon_session,
 )
@@ -216,7 +219,7 @@ def health() -> dict:
 def api_stats() -> dict:
     """Aggregate wardrobe stats: total items, worn-this-month, streak, versatility."""
     from datetime import date
-    from app.storage.db import get_wardrobe_versatility
+    from app.storage.db import get_wardrobe_cpw_stats, get_wardrobe_versatility
 
     items = list_items()
     this_month = date.today().strftime("%Y-%m")
@@ -231,6 +234,7 @@ def api_stats() -> dict:
         conn_stats.close()
 
     versatility = get_wardrobe_versatility()
+    cpw = get_wardrobe_cpw_stats()
     return {
         "total_items": len(items),
         "worn_this_month": worn_this_month,
@@ -238,6 +242,11 @@ def api_stats() -> dict:
         "versatility_score": versatility["versatility_score"],
         "weekly_change": versatility["weekly_change"],
         "most_worn": versatility["most_worn"],
+        "avg_cost_per_wear": cpw["avg_cost_per_wear"],
+        "items_with_price": cpw["items_with_price"],
+        "best_value_item_id": cpw["best_value_item_id"],
+        "worst_value_item_id": cpw["worst_value_item_id"],
+        "currency": cpw["currency"],
     }
 
 
@@ -269,8 +278,36 @@ def api_get_item(item_id: str) -> dict:
     row = get_item(item_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"No item with id {item_id}")
-    row["worn"] = get_wear_counts().get(item_id, 0)
+    worn = get_wear_counts().get(item_id, 0)
+    row["worn"] = worn
+    row["cost_per_wear"] = (
+        round(row["price"] / worn, 2) if row.get("price") and worn > 0 else None
+    )
     return item_to_dto(row)
+
+
+class PriceRequest(BaseModel):
+    price: float
+    currency: str = "EUR"
+
+
+@app.patch("/api/items/{item_id}/price")
+def api_set_price(item_id: str, req: PriceRequest) -> dict:
+    """Set or update the purchase price for a wardrobe item."""
+    if get_item(item_id) is None:
+        raise HTTPException(status_code=404, detail=f"No item with id {item_id}")
+    if req.price < 0:
+        raise HTTPException(status_code=400, detail="Price must be a positive number")
+    set_item_price(item_id, req.price, req.currency)
+    return {"status": "ok", "item_id": item_id, "price": req.price}
+
+
+@app.get("/api/items/{item_id}/cpw")
+def api_item_cpw(item_id: str) -> dict:
+    """Cost-per-wear stats for one item."""
+    if get_item(item_id) is None:
+        raise HTTPException(status_code=404, detail=f"No item with id {item_id}")
+    return get_item_cost_per_wear(item_id)
 
 
 @app.delete("/api/items/{item_id}")
@@ -521,10 +558,29 @@ def api_add_item(req: AddItemRequest) -> dict:
 
 
 @app.post("/api/should-i-buy")
-async def api_should_i_buy(upload: UploadFile = File(...)) -> dict:
-    """Run the shopping decision agent on a photo of a prospective purchase."""
+async def api_should_i_buy(
+    upload: UploadFile = File(...),
+    price: float | None = Form(None),
+    currency: str = Form("EUR"),
+) -> dict:
+    """Run the shopping decision agent on a photo of a prospective purchase.
+    An optional price turns on the cost-per-wear projection, benchmarked
+    against the wardrobe's real average CPW when any prices are set."""
     image_path = _save_upload(upload)
-    verdict, tool_log = evaluate_purchase(image_path, verbose=False)
+
+    price_context = ""
+    if price:
+        cpw_stats = get_wardrobe_cpw_stats()
+        price_context = (
+            f"\nThe user is considering paying {currency}{price} for this item."
+        )
+        if cpw_stats["avg_cost_per_wear"]:
+            price_context += (
+                f" Their current wardrobe average is "
+                f"{cpw_stats['currency']}{cpw_stats['avg_cost_per_wear']} per wear."
+            )
+
+    verdict, tool_log = evaluate_purchase(image_path, verbose=False, extra_context=price_context)
     new_item = tag_photo(image_path).model_dump()
     return {
         "image_path": image_path,

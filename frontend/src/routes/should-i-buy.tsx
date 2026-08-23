@@ -38,6 +38,7 @@ function ShouldIBuy() {
   const [stage, setStage] = useState<Stage>("start");
   const [fire, setFire] = useState(0);
   const [verdict, setVerdict] = useState<VerdictResult | null>(null);
+  const [price, setPrice] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const { data: closet } = useCloset();
 
@@ -45,7 +46,7 @@ function ShouldIBuy() {
     if (!file) return;
     setStage("loading");
     try {
-      const result = await shouldIBuy(file);
+      const result = await shouldIBuy(file, price ? parseFloat(price) : undefined);
       setVerdict(result);
       setStage("verdict");
       setFire((f) => f + 1);
@@ -110,10 +111,31 @@ function ShouldIBuy() {
           {hint && (
             <p className="mb-3 rounded-2xl bg-card px-4 py-3 text-center text-sm font-bold italic text-muted-foreground shadow-polaroid">
               Cupboard reminder — you came looking for something like a{" "}
-              <span className="text-rose">{hint.toLowerCase()}</span>. Snap what
-              you&apos;re eyeing.
+              <span className="text-rose">{hint.toLowerCase()}</span>. Snap what you&apos;re eyeing.
             </p>
           )}
+
+          {/* Optional price turns on the cost-per-wear projection in the verdict */}
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <label
+              htmlFor="buy-price"
+              className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
+            >
+              optional: what does it cost?
+            </label>
+            <div className="flex items-center overflow-hidden rounded-xl border border-input bg-card focus-within:ring-2 focus-within:ring-ring">
+              <span className="px-2 font-mono text-sm text-muted-foreground">EUR</span>
+              <input
+                id="buy-price"
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="0"
+                className="w-20 bg-transparent py-2 pr-2 text-sm outline-none"
+              />
+            </div>
+          </div>
+
           <button
             onClick={() => fileInput.current?.click()}
             className="tappable relative w-full overflow-hidden rounded-4xl bg-rose p-8 text-center text-primary-foreground shadow-lift"

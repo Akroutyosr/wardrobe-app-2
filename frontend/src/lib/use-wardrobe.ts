@@ -127,6 +127,10 @@ export function useStats() {
       versatility_score: 0,
       weekly_change: 0,
       most_worn: [],
+      avg_cost_per_wear: null,
+      items_with_price: 0,
+      best_value_item_id: null,
+      currency: "EUR",
     } satisfies WardrobeStats,
   });
 }

@@ -25,6 +25,8 @@ export type ClosetItem = {
   formality: string;
   worn: number;
   note: string;
+  /** Real cost-per-wear from the backend (price / wear count); absent when unpriced. */
+  cpw?: number | null;
 };
 
 export const closet: ClosetItem[] = [

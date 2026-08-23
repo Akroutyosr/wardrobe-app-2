@@ -1,10 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Sparkles, Trash2 } from "lucide-react";
 import { itemNotes } from "@/lib/twinish-data";
 import { useCloset, useItem, useOutfits, useSavedOutfits, itemsByIds } from "@/lib/use-wardrobe";
-import { deleteItem } from "@/lib/api";
+import { currencySymbol, deleteItem, fetchItemCpw, setItemPrice } from "@/lib/api";
 import { Badge } from "@/components/ui-bits";
 import { Callout, ArrowNote, WashiTape } from "@/components/scrapbook";
 
@@ -48,6 +48,24 @@ function ItemDetail() {
   );
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Cost-per-wear: wear count, price, and what each outing actually costs.
+  const { data: cpw } = useQuery({
+    queryKey: ["cpw", itemId],
+    queryFn: () => fetchItemCpw(itemId),
+    staleTime: 5 * 60 * 1000,
+  });
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceInput, setPriceInput] = useState("");
+  const priceMutation = useMutation({
+    mutationFn: () => setItemPrice(itemId, parseFloat(priceInput)),
+    onSuccess: () => {
+      setEditingPrice(false);
+      queryClient.invalidateQueries({ queryKey: ["cpw", itemId] });
+      queryClient.invalidateQueries({ queryKey: ["closet"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    },
+  });
 
   const removeItem = async () => {
     if (!item) return;
@@ -104,9 +122,7 @@ function ItemDetail() {
     item.note ?? "A quiet workhorse — nothing flashy, always useful.",
   ];
   const related = itemsByIds(
-    (savedLooks ?? [])
-      .filter((o) => o.items.includes(item.id))
-      .flatMap((o) => o.items),
+    (savedLooks ?? []).filter((o) => o.items.includes(item.id)).flatMap((o) => o.items),
     closet,
   ).slice(0, 3);
   const itemSummary = item.name;
@@ -149,69 +165,161 @@ function ItemDetail() {
       </div>
 
       <div className="md:flex md:flex-row md:items-start md:gap-10">
-      <section className="kraft relative overflow-hidden rounded-3xl p-4 pt-7 md:min-w-0 md:flex-1">
-        <WashiTape className="-right-7 top-4 w-32 rotate-[20deg]" />
-        <p className="handwritten absolute left-6 top-1 text-3xl">no. {item.id}</p>
+        <section className="kraft relative overflow-hidden rounded-3xl p-4 pt-7 md:min-w-0 md:flex-1">
+          <WashiTape className="-right-7 top-4 w-32 rotate-[20deg]" />
+          <p className="handwritten absolute left-6 top-1 text-3xl">no. {item.id}</p>
 
-        <div className="relative">
-          <div className="polaroid animate-print p-2.5">
-            <img
-              src={item.image}
-              alt={item.name}
-              className="w-full rounded-2xl object-cover md:w-1/2 md:max-w-sm"
-            />
-            <p className="handwritten px-1 pt-2 text-2xl leading-none">{item.name}</p>
-          </div>
-          <Callout n={1} className="absolute -left-2 -top-2" />
-        </div>
-
-        {/* detail-shot insets */}
-        <div className="mt-4 flex gap-3">
-          {[0, 1].map((i) => (
-            <div key={i} className="relative w-1/2">
-              <div className="polaroid p-1.5" style={{ transform: `rotate(${i ? 2.5 : -2.5}deg)` }}>
-                <img
-                  src={item.image}
-                  alt={`${item.name} detail shot ${i + 1}`}
-                  loading="lazy"
-                  className="aspect-square w-full rounded-xl object-cover"
-                  style={{ objectPosition: i ? "80% 20%" : "20% 80%" }}
-                />
-              </div>
-              <Callout n={i + 2} className="absolute -left-2 -top-2" />
+          <div className="relative">
+            <div className="polaroid animate-print p-2.5">
+              <img
+                src={item.image}
+                alt={item.name}
+                className="w-full rounded-2xl object-cover md:w-1/2 md:max-w-sm"
+              />
+              <p className="handwritten px-1 pt-2 text-2xl leading-none">{item.name}</p>
             </div>
-          ))}
+            <Callout n={1} className="absolute -left-2 -top-2" />
+          </div>
+
+          {/* detail-shot insets */}
+          <div className="mt-4 flex gap-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="relative w-1/2">
+                <div
+                  className="polaroid p-1.5"
+                  style={{ transform: `rotate(${i ? 2.5 : -2.5}deg)` }}
+                >
+                  <img
+                    src={item.image}
+                    alt={`${item.name} detail shot ${i + 1}`}
+                    loading="lazy"
+                    className="aspect-square w-full rounded-xl object-cover"
+                    style={{ objectPosition: i ? "80% 20%" : "20% 80%" }}
+                  />
+                </div>
+                <Callout n={i + 2} className="absolute -left-2 -top-2" />
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {notes.map((n, i) => (
+              <ArrowNote key={n} flip={i % 2 === 1}>
+                {n}
+              </ArrowNote>
+            ))}
+          </div>
+        </section>
+
+        <div className="mt-4 md:mt-0 md:min-w-0 md:flex-1">
+          <p className="handwritten text-2xl leading-snug text-foreground/80">{item.note}</p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Badge tone="primary">{item.color}</Badge>
+            <Badge tone="lilac">{item.formality}</Badge>
+            {item.season.map((s) => (
+              <Badge key={s} tone="mint">
+                {s}
+              </Badge>
+            ))}
+            <Badge tone="butter">{item.category}</Badge>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between rounded-2xl bg-secondary px-5 py-4 font-mono text-[0.7rem] font-bold uppercase tracking-widest text-secondary-foreground">
+            <span>worn {item.worn}×</span>
+            <span>in {related.length} looks</span>
+            <span>
+              {cpw?.cost_per_wear != null
+                ? `${currencySymbol(cpw.currency)}${cpw.cost_per_wear} / wear`
+                : "great value / wear"}
+            </span>
+          </div>
+
+          {/* Value tracker: what this piece actually costs every time it's worn */}
+          <div className="mt-4 space-y-3 rounded-2xl bg-card p-4 shadow-polaroid">
+            <h3 className="font-mono text-[0.62rem] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+              Value tracker
+            </h3>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-extrabold leading-none">{cpw?.wear_count ?? 0}×</p>
+                <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
+                  times worn
+                </p>
+              </div>
+
+              {cpw?.cost_per_wear != null ? (
+                <div className="text-center">
+                  <p className="text-2xl font-extrabold leading-none text-rose">
+                    {currencySymbol(cpw.currency)}
+                    {cpw.cost_per_wear}
+                  </p>
+                  <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
+                    per wear
+                  </p>
+                </div>
+              ) : cpw?.price != null ? (
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Wear it to see CPW</p>
+                </div>
+              ) : null}
+
+              <div className="text-right">
+                {cpw?.price != null ? (
+                  <>
+                    <p className="text-2xl font-extrabold leading-none">
+                      {currencySymbol(cpw.currency)}
+                      {cpw.price}
+                    </p>
+                    <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
+                      paid
+                    </p>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setEditingPrice(true)}
+                    className="tappable rounded-full border border-blossom px-3 py-1.5 text-sm font-bold text-rose"
+                  >
+                    + Add price
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {editingPrice && (
+              <div className="flex items-center gap-2 border-t border-border pt-3">
+                <span className="font-mono text-sm text-muted-foreground">EUR</span>
+                <input
+                  type="number"
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
+                  placeholder="0.00"
+                  autoFocus
+                  className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <button
+                  onClick={() => priceMutation.mutate()}
+                  disabled={!priceInput || isNaN(parseFloat(priceInput)) || priceMutation.isPending}
+                  className="tappable rounded-xl bg-rose px-4 py-2 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
+                >
+                  {priceMutation.isPending ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => setEditingPrice(false)}
+                  className="text-sm text-muted-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {priceMutation.isError && (
+              <p className="text-xs font-semibold text-destructive">
+                Couldn&apos;t save that price.
+              </p>
+            )}
+          </div>
         </div>
-
-        <div className="mt-4 space-y-2">
-          {notes.map((n, i) => (
-            <ArrowNote key={n} flip={i % 2 === 1}>
-              {n}
-            </ArrowNote>
-          ))}
-        </div>
-      </section>
-
-      <div className="mt-4 md:mt-0 md:min-w-0 md:flex-1">
-        <p className="handwritten text-2xl leading-snug text-foreground/80">{item.note}</p>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-        <Badge tone="primary">{item.color}</Badge>
-        <Badge tone="lilac">{item.formality}</Badge>
-        {item.season.map((s) => (
-          <Badge key={s} tone="mint">
-            {s}
-          </Badge>
-        ))}
-        <Badge tone="butter">{item.category}</Badge>
-      </div>
-
-      <div className="mt-4 flex items-center justify-between rounded-2xl bg-secondary px-5 py-4 font-mono text-[0.7rem] font-bold uppercase tracking-widest text-secondary-foreground">
-        <span>worn {item.worn}×</span>
-        <span>in {related.length} looks</span>
-        <span>great value / wear</span>
-      </div>
-      </div>
       </div>
 
       {related.length > 0 && (
@@ -283,8 +391,8 @@ function ItemDetail() {
 
         {building && !anchorsLoading && anchorOutfits.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Couldn't build a complete look — this piece may be missing compatible
-            counterparts (e.g. shoes or bottoms) to pair with.
+            Couldn't build a complete look — this piece may be missing compatible counterparts (e.g.
+            shoes or bottoms) to pair with.
           </p>
         )}
 

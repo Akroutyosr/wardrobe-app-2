@@ -153,13 +153,21 @@ def item_to_dto(item: dict) -> dict:
         "fabric_guess": item.get("fabric_guess", ""),
         "notes": item.get("notes", ""),
         "worn": item.get("worn", 0),
+        "price": item.get("price"),
+        "cost_per_wear": item.get("cost_per_wear"),
     }
 
 
 def decorate_with_wear_counts(items: list[dict]) -> list[dict]:
     counts = get_wear_counts()
     for item in items:
-        item["worn"] = counts.get(item["id"], 0)
+        worn = counts.get(item["id"], 0)
+        item["worn"] = worn
+        # Cost-per-wear rides along here (rows already carry price) so the
+        # closet grid gets badges without N extra API calls.
+        item["cost_per_wear"] = (
+            round(item["price"] / worn, 2) if item.get("price") and worn > 0 else None
+        )
     return items
 
 
