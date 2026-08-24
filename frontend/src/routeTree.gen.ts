@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AddRouteImport } from './routes/add'
 import { Route as IdeasRouteImport } from './routes/ideas'
 import { Route as PlannerRouteImport } from './routes/planner'
+import { Route as PricesRouteImport } from './routes/prices'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as ShouldIBuyRouteImport } from './routes/should-i-buy'
 import { Route as ClosetIndexRouteImport } from './routes/closet.index'
@@ -39,6 +40,11 @@ const IdeasRoute = IdeasRouteImport.update({
 const PlannerRoute = PlannerRouteImport.update({
   id: '/planner',
   path: '/planner',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricesRoute = PricesRouteImport.update({
+  id: '/prices',
+  path: '/prices',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuizRoute = QuizRouteImport.update({
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/add': typeof AddRoute
   '/ideas': typeof IdeasRoute
   '/planner': typeof PlannerRoute
+  '/prices': typeof PricesRoute
   '/quiz': typeof QuizRoute
   '/should-i-buy': typeof ShouldIBuyRoute
   '/closet/$itemId': typeof ClosetItemIdRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/add': typeof AddRoute
   '/ideas': typeof IdeasRoute
   '/planner': typeof PlannerRoute
+  '/prices': typeof PricesRoute
   '/quiz': typeof QuizRoute
   '/should-i-buy': typeof ShouldIBuyRoute
   '/closet/$itemId': typeof ClosetItemIdRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/add': typeof AddRoute
   '/ideas': typeof IdeasRoute
   '/planner': typeof PlannerRoute
+  '/prices': typeof PricesRoute
   '/quiz': typeof QuizRoute
   '/should-i-buy': typeof ShouldIBuyRoute
   '/closet/$itemId': typeof ClosetItemIdRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/ideas'
     | '/planner'
+    | '/prices'
     | '/quiz'
     | '/should-i-buy'
     | '/closet/$itemId'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/ideas'
     | '/planner'
+    | '/prices'
     | '/quiz'
     | '/should-i-buy'
     | '/closet/$itemId'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/ideas'
     | '/planner'
+    | '/prices'
     | '/quiz'
     | '/should-i-buy'
     | '/closet/$itemId'
@@ -164,6 +176,7 @@ export interface RootRouteChildren {
   AddRoute: typeof AddRoute
   IdeasRoute: typeof IdeasRoute
   PlannerRoute: typeof PlannerRoute
+  PricesRoute: typeof PricesRoute
   QuizRoute: typeof QuizRoute
   ShouldIBuyRoute: typeof ShouldIBuyRoute
   ClosetItemIdRoute: typeof ClosetItemIdRoute
@@ -201,6 +214,13 @@ declare module '@tanstack/react-router' {
       path: '/planner'
       fullPath: '/planner'
       preLoaderRoute: typeof PlannerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/prices': {
+      id: '/prices'
+      path: '/prices'
+      fullPath: '/prices'
+      preLoaderRoute: typeof PricesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quiz': {
@@ -260,6 +280,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddRoute: AddRoute,
   IdeasRoute: IdeasRoute,
   PlannerRoute: PlannerRoute,
+  PricesRoute: PricesRoute,
   QuizRoute: QuizRoute,
   ShouldIBuyRoute: ShouldIBuyRoute,
   ClosetItemIdRoute: ClosetItemIdRoute,

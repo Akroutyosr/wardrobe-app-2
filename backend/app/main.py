@@ -41,9 +41,12 @@ from app.recommend.retrieve import retrieve_candidates
 from app.recommend.quiz_analysis import analyze_quiz
 from app.storage.db import (
     REPO_ROOT,
+    advance_challenges_for_wear,
     create_tryon_session,
     delete_fitting_photo,
     delete_item,
+    generate_new_challenges,
+    get_active_challenges,
     get_connection,
     get_current_streak,
     get_distinct_colors,
@@ -60,9 +63,11 @@ from app.storage.db import (
     get_saved_fitting_photo,
     get_tryon_session,
     get_wear_counts,
+    init_db,
     list_items,
     log_outfit_wear,
     rate_generated_outfit,
+    save_challenge,
     save_generated_outfit,
     save_fitting_photo,
     save_quiz_preference,
@@ -82,6 +87,8 @@ from app.tryon.vton_client import try_on
 class AddItemRequest(BaseModel):
     image_path: str = Field(default="", description="Photo path returned by /api/items/upload")
     tags: ClothingItem
+    price: float | None = Field(default=None, ge=0, description="Optional purchase price")
+    currency: str = "EUR"
 
 app = FastAPI(title="Digital Wardrobe Twin API", version="0.1.0")
 
@@ -505,7 +512,9 @@ class QuickLogRequest(BaseModel):
 
 
 @app.post("/api/wear-log/quick-log")
-def api_quick_log(req: QuickLogRequest) -> dict:
+def api_quick_log(
+    req: QuickLogRequest, x_device_id: str = Header(...)
+) -> dict:
     """
     Logs a worn outfit from the quick-log flow. Creates a new generated_outfit
     entry so the look has a stable ID and appears in the Planner, then logs
@@ -533,7 +542,44 @@ def api_quick_log(req: QuickLogRequest) -> dict:
     # Rate it (also writes the wear_log rows for every item)
     rate_generated_outfit(outfit_id, req.rating, worn_on)
 
-    return {"outfit_id": outfit_id, "status": "logged"}
+    # Automatically advance any active challenges for this device
+    completed = advance_challenges_for_wear(x_device_id, req.item_ids)
+
+    return {
+        "outfit_id": outfit_id,
+        "status": "logged",
+        "challenges_completed": completed,
+    }
+
+
+@app.get("/api/challenges")
+def api_get_challenges(x_device_id: str = Header(...)) -> list[dict]:
+    """
+    Active challenges, auto-generating new ones if fewer than 3 exist.
+    The only challenges endpoint the frontend needs on load.
+    """
+    active = get_active_challenges(x_device_id)
+    if len(active) < 3:
+        needed = 3 - len(active)
+        for c in generate_new_challenges(x_device_id)[:needed]:
+            save_challenge(x_device_id, c)
+        active = get_active_challenges(x_device_id)
+    return active
+
+
+@app.get("/api/challenges/completed")
+def api_completed_challenges(x_device_id: str = Header(...)) -> list[dict]:
+    """Recently completed challenges, newest first — the trophy case."""
+    init_db()
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM challenges
+           WHERE device_id = %s AND status = 'completed'
+           ORDER BY completed_at DESC LIMIT 10""",
+        (x_device_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 @app.get("/api/wear-log/recent")
@@ -554,6 +600,8 @@ async def api_upload_item(upload: UploadFile = File(...)) -> dict:
 def api_add_item(req: AddItemRequest) -> dict:
     """Save a reviewed, tagged item to the wardrobe (SQLite + Chroma)."""
     saved = ingest_item(req.image_path, req.tags.model_dump())
+    if req.price is not None:
+        set_item_price(saved["id"], req.price, req.currency)
     return item_to_dto(saved)
 
 

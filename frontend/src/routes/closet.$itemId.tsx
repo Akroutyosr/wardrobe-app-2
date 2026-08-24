@@ -2,10 +2,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Sparkles, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { itemNotes } from "@/lib/twinish-data";
 import { useCloset, useItem, useOutfits, useSavedOutfits, itemsByIds } from "@/lib/use-wardrobe";
 import { currencySymbol, deleteItem, fetchItemCpw, setItemPrice } from "@/lib/api";
-import { Badge } from "@/components/ui-bits";
+import { Badge, SafeImage } from "@/components/ui-bits";
 import { Callout, ArrowNote, WashiTape } from "@/components/scrapbook";
 
 export const Route = createFileRoute("/closet/$itemId")({
@@ -61,9 +62,13 @@ function ItemDetail() {
     mutationFn: () => setItemPrice(itemId, parseFloat(priceInput)),
     onSuccess: () => {
       setEditingPrice(false);
+      toast.success("Price saved — cost-per-wear unlocked");
       queryClient.invalidateQueries({ queryKey: ["cpw", itemId] });
       queryClient.invalidateQueries({ queryKey: ["closet"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
+    },
+    onError: () => {
+      toast.error("Couldn't save that price — check your connection");
     },
   });
 
@@ -72,6 +77,7 @@ function ItemDetail() {
     setDeleting(true);
     try {
       await deleteItem(item.id);
+      toast.success("Removed from your closet");
       // The item may have been the anchor of cached outfit decks too — drop
       // the closet (and outfits) so nothing stale lingers after navigating back.
       await queryClient.invalidateQueries({ queryKey: ["closet"] });
@@ -79,6 +85,7 @@ function ItemDetail() {
       navigate({ to: "/closet" });
     } catch (err) {
       console.error("delete failed:", err);
+      toast.error("Couldn't delete that item — try again in a moment");
       setDeleting(false);
       setConfirming(false);
     }
@@ -328,10 +335,9 @@ function ItemDetail() {
           <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none]">
             {related.slice(0, 4).map((it) => (
               <div key={it.id} className="tappable paper w-28 shrink-0 rounded-2xl p-2.5">
-                <img
+                <SafeImage
                   src={it.image}
                   alt={it.name}
-                  loading="lazy"
                   className="aspect-square w-full rounded-xl object-cover"
                 />
                 <p className="truncate pt-1.5 text-xs font-bold">{it.name}</p>

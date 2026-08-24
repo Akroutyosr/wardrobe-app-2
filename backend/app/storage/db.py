@@ -136,6 +136,30 @@ CREATE TABLE IF NOT EXISTS quiz_results (
     result_json TEXT,
     taken_at TEXT
 );
+
+-- Wardrobe challenges: auto-generated from real wear_log data, advanced
+-- automatically on every quick-log. Per-device (the app's only identity
+-- until accounts land). expires_at filters lapsed ones without deletion.
+CREATE TABLE IF NOT EXISTS challenges (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    target_item_id TEXT,
+    target_count INTEGER NOT NULL DEFAULT 1,
+    current_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
+    started_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_challenges_device
+    ON challenges(device_id, status);
+CREATE INDEX IF NOT EXISTS idx_challenges_item
+    ON challenges(target_item_id)
+    WHERE target_item_id IS NOT NULL;
 """
 
 
@@ -613,6 +637,238 @@ def get_wardrobe_cpw_stats() -> dict:
         "worst_value_item_id": worst["item_id"],
         "currency": currency,
     }
+
+
+# --- Wardrobe challenges -------------------------------------------------------
+
+
+def get_active_challenges(device_id: str) -> list[dict]:
+    init_db()
+    from datetime import date
+    today = date.today().isoformat()
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT * FROM challenges
+           WHERE device_id = %s
+           AND status = 'active'
+           AND expires_at >= %s
+           ORDER BY started_at DESC""",
+        (device_id, today),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def save_challenge(device_id: str, challenge: dict) -> str:
+    init_db()
+    from datetime import date, timedelta
+    challenge_id = str(uuid.uuid4())[:8]
+    today = date.today()
+    # Most challenges last 7 days; the daily-log streak gets longer to breathe
+    days = 14 if challenge["type"] == "rating_streak" else 7
+    expires = (today + timedelta(days=days)).isoformat()
+
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO challenges
+           (id, device_id, type, title, description, target_item_id,
+            target_count, current_count, status, started_at, expires_at)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,0,'active',%s,%s)""",
+        (
+            challenge_id,
+            device_id,
+            challenge["type"],
+            challenge["title"],
+            challenge["description"],
+            challenge.get("target_item_id"),
+            challenge["target_count"],
+            today.isoformat(),
+            expires,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return challenge_id
+
+
+def _complete_or_bump(conn, challenge: dict, new_count: int, today: str) -> bool:
+    """Shared tail for counted challenges: persist progress, complete when the
+    target is reached. Returns True if the challenge just completed."""
+    conn.execute(
+        "UPDATE challenges SET current_count = %s WHERE id = %s",
+        (new_count, challenge["id"]),
+    )
+    if new_count >= challenge["target_count"]:
+        conn.execute(
+            "UPDATE challenges SET status='completed', completed_at=%s WHERE id=%s",
+            (today, challenge["id"]),
+        )
+        return True
+    return False
+
+
+def advance_challenges_for_wear(device_id: str, item_ids: list[str]) -> list[str]:
+    """
+    Called every time an outfit is logged. Checks all active challenges
+    and advances any that the logged items satisfy. Returns list of
+    challenge IDs that just completed.
+    """
+    init_db()
+    from datetime import date, timedelta
+    today = date.today().isoformat()
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
+    challenges = get_active_challenges(device_id)
+    completed_ids = []
+
+    conn = get_connection()
+    try:
+        for c in challenges:
+            if c["type"] == "wear_neglected":
+                if c["target_item_id"] in item_ids:
+                    if _complete_or_bump(conn, c, c["current_count"] + 1, today):
+                        completed_ids.append(c["id"])
+
+            elif c["type"] == "style_item_N_ways":
+                # Distinct outfits containing the target SINCE the challenge
+                # started -- 'N ways this week' must not count old history.
+                row = conn.execute(
+                    """SELECT COUNT(DISTINCT outfit_id) AS cnt FROM wear_log
+                       WHERE item_id = %s AND worn_on >= %s""",
+                    (c["target_item_id"], c["started_at"]),
+                ).fetchone()
+                new_count = row["cnt"] if row else 0
+                if new_count > c["current_count"]:
+                    if _complete_or_bump(conn, c, new_count, today):
+                        completed_ids.append(c["id"])
+
+            elif c["type"] == "no_repeat_week":
+                # Genuinely distinct COMBINATIONS (via the generated_outfits
+                # item list), not just distinct logs of the same look.
+                row = conn.execute(
+                    """SELECT COUNT(DISTINCT go.item_ids_json) AS cnt
+                       FROM wear_log wl
+                       JOIN generated_outfits go ON go.id = wl.outfit_id
+                       WHERE wl.worn_on >= %s""",
+                    (week_ago,),
+                ).fetchone()
+                new_count = row["cnt"] if row else 0
+                if new_count > c["current_count"]:
+                    if _complete_or_bump(conn, c, new_count, today):
+                        completed_ids.append(c["id"])
+
+            elif c["type"] == "rating_streak":
+                # Real consecutive-day streak ending today (same rule as the
+                # home screen counter), not a loose day count.
+                new_count = get_current_streak()
+                if new_count > c["current_count"]:
+                    if _complete_or_bump(conn, c, new_count, today):
+                        completed_ids.append(c["id"])
+        conn.commit()
+    finally:
+        conn.close()
+    return completed_ids
+
+
+def generate_new_challenges(device_id: str) -> list[dict]:
+    """
+    Generates up to 3 personalized challenges based on real wardrobe
+    and wear history. Only generates what's needed to fill 3 active slots.
+    """
+    import random
+    init_db()
+    items = list_items()
+    if not items:
+        return []
+
+    active_types = {c["type"] for c in get_active_challenges(device_id)}
+
+    conn = get_connection()
+    wear_counts = {}
+    rows = conn.execute(
+        "SELECT item_id, COUNT(*) as cnt FROM wear_log GROUP BY item_id"
+    ).fetchall()
+    for r in rows:
+        wear_counts[r["item_id"]] = r["cnt"]
+
+    recent_outfit_count = conn.execute(
+        """SELECT COUNT(DISTINCT go.item_ids_json) as cnt
+           FROM wear_log wl
+           JOIN generated_outfits go ON go.id = wl.outfit_id
+           WHERE wl.worn_on::date >= (NOW() - INTERVAL '7 days')::date"""
+    ).fetchone()["cnt"]
+    conn.close()
+
+    challenges = []
+
+    # Challenge 1: wear a neglected item
+    if "wear_neglected" not in active_types:
+        never_worn = [i for i in items if wear_counts.get(i["id"], 0) == 0]
+        if never_worn:
+            target = random.choice(never_worn)
+            cpw = get_item_cost_per_wear(target["id"])
+            price_note = ""
+            if cpw["price"]:
+                price_note = (
+                    f" You paid €{cpw['price']} for it — "
+                    f"time to get some value out of it."
+                )
+            challenges.append({
+                "type": "wear_neglected",
+                "title": f"Finally wear your {target['subcategory']}",
+                "description": (
+                    f"Your {target['primary_color']} {target['subcategory']} "
+                    f"has never been logged as worn.{price_note} "
+                    f"Style it this week."
+                ),
+                "target_item_id": target["id"],
+                "target_count": 1,
+            })
+
+    # Challenge 2: style your most-worn item N different ways
+    if "style_item_N_ways" not in active_types and wear_counts:
+        most_worn_id = max(wear_counts, key=lambda k: wear_counts[k])
+        item = get_item(most_worn_id)
+        if item:
+            target_ways = wear_counts[most_worn_id] + 2
+            challenges.append({
+                "type": "style_item_N_ways",
+                "title": f"Style your {item['subcategory']} {target_ways} ways",
+                "description": (
+                    f"Your {item['primary_color']} {item['subcategory']} "
+                    f"is clearly a favourite. Challenge: wear it "
+                    f"{target_ways} different ways this week."
+                ),
+                "target_item_id": most_worn_id,
+                "target_count": target_ways,
+            })
+
+    # Challenge 3: no-repeat week OR a daily-log streak
+    if "no_repeat_week" not in active_types and "rating_streak" not in active_types:
+        if recent_outfit_count < 3:
+            challenges.append({
+                "type": "no_repeat_week",
+                "title": "7 outfits, 0 repeats",
+                "description": (
+                    "Log 7 different outfits this week without repeating "
+                    "any exact combination. Rediscover what's in your closet."
+                ),
+                "target_item_id": None,
+                "target_count": 7,
+            })
+        else:
+            challenges.append({
+                "type": "rating_streak",
+                "title": "Log every day for 10 days",
+                "description": (
+                    "Build a real habit: log what you wear every day "
+                    "for 10 days in a row. Your outfit recommendations "
+                    "will get noticeably better."
+                ),
+                "target_item_id": None,
+                "target_count": 10,
+            })
+
+    return challenges
 
 
 def list_items(category: str | None = None, season: str | None = None) -> list[dict]:

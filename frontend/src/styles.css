@@ -76,6 +76,8 @@
   --animate-breathe: breathe 2.4s ease-in-out infinite;
   --animate-print: print-out 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-stamp: stamp-thump 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+  --animate-sheet-up: sheet-up 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-fast: fade-fast 0.22s ease-out both;
 }
 
 :root {
@@ -171,6 +173,16 @@
   100% { transform: rotate(-9deg) scale(1); opacity: 1; }
 }
 
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes fade-fast {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @utility tappable {
   transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
   &:hover { transform: translateY(-2px); }
@@ -262,6 +274,23 @@
     font-family: var(--font-display);
     font-weight: 600;
     letter-spacing: -0.02em;
+  }
+
+  /* Keyboard focus is visible everywhere — the .tappable hover transform
+     must never be the only affordance. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Respect the OS reduced-motion setting across all custom animation */
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 

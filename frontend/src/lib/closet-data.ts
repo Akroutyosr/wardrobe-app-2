@@ -27,6 +27,8 @@ export type ClosetItem = {
   note: string;
   /** Real cost-per-wear from the backend (price / wear count); absent when unpriced. */
   cpw?: number | null;
+  /** Purchase price when known — the price sweep targets items without one. */
+  price?: number | null;
 };
 
 export const closet: ClosetItem[] = [

@@ -9,8 +9,10 @@ import type { WeatherNow } from "@/lib/weather";
 import { Confetti } from "@/components/Confetti";
 import { PlateCard } from "@/components/plate";
 import { QuickLog } from "@/components/QuickLog";
+import { ChallengeCard } from "@/components/ChallengeCard";
 import { dismissNudgeToday, markLoggedToday, shouldShowNudge } from "@/lib/habit-nudge";
 import { currencySymbol, fetchSuggestedOutfit } from "@/lib/api";
+import { useChallenges } from "@/lib/use-wardrobe";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -127,6 +129,7 @@ function Today() {
     currency: "EUR",
   };
   const { data: stats = STATS_DEFAULT } = useStats();
+  const { data: challenges = [] } = useChallenges();
   // Pass the live weather into the LLM deck so the generated outfits and their
   // reasoning actually reflect today's real conditions. Generation waits for
   // the weather fetch so we never fire a wasteful empty-context deck first.
@@ -314,6 +317,23 @@ function Today() {
             <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">day streak</p>
           </div>
         </div>
+
+        {/* challenges: auto-generated from real wear data, advanced on every log */}
+        {challenges.length > 0 && (
+          <section className="mt-4">
+            <div className="mb-2 flex items-baseline justify-between">
+              <h2 className="display text-xl">Your challenges</h2>
+              <span className="font-mono text-[0.62rem] font-bold uppercase tracking-widest text-muted-foreground">
+                {challenges.length} active
+              </span>
+            </div>
+            <div className="space-y-2">
+              {challenges.map((c) => (
+                <ChallengeCard key={c.id} challenge={c} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* game-stat score: avg cost-per-wear once prices exist, versatility before that */}
         <section className="mt-4 overflow-hidden rounded-4xl bg-ink text-background shadow-lift">

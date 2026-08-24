@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCloset } from "@/lib/use-wardrobe";
 import { quickLogWear } from "@/lib/api";
@@ -27,6 +27,10 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
   const [rating, setRating] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("top");
   const [step, setStep] = useState<"pick" | "rate">("pick");
+  // Full-sheet feedback after saving: 🎉 when a challenge completed,
+  // a quicker ✓ flash for an ordinary log. null = normal sheet.
+  const [feedback, setFeedback] = useState<"challenge" | "logged" | null>(null);
+  const closeTimer = useRef<number | undefined>(undefined);
 
   // The suggestion arrives after mount (async fetch), and the sheet must open
   // fresh every time -- so re-seed whenever it's closed.
@@ -40,15 +44,45 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, preselectKey]);
 
+  // While open: lock body scroll and let Escape dismiss the sheet.
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [isOpen, onClose]);
+
+  // Never leave a delayed close dangling if the sheet unmounts.
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
+  const finishWith = (kind: "challenge" | "logged") => {
+    setFeedback(kind);
+    closeTimer.current = window.setTimeout(
+      () => {
+        setFeedback(null);
+        onClose();
+      },
+      kind === "challenge" ? 2200 : 900,
+    );
+  };
+
   const logMutation = useMutation({
     mutationFn: () => quickLogWear(selectedIds, rating ?? 3),
-    onSuccess: () => {
+    onSuccess: (data) => {
       markLoggedToday();
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["closet"] });
       queryClient.invalidateQueries({ queryKey: ["planner/week"] });
       queryClient.invalidateQueries({ queryKey: ["outfits"] });
-      onClose();
+      queryClient.invalidateQueries({ queryKey: ["challenges"] });
+      finishWith(data.challenges_completed?.length ? "challenge" : "logged");
     },
   });
 
@@ -57,14 +91,12 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
   };
 
   const filteredItems = closet.filter((i) => i.category === activeCategory);
+  const selectedItems = selectedIds
+    .map((id) => closet.find((i) => i.id === id))
+    .filter((i): i is NonNullable<typeof i> => Boolean(i));
   // Backend categories ("top"/"bottom"/…) ride through ClosetItem as a cast,
   // so compare as plain strings rather than the mock data's Category union.
-  const selectedCategories = new Set<string>(
-    selectedIds.flatMap((id) => {
-      const cat = closet.find((i) => i.id === id)?.category;
-      return cat ? [String(cat)] : [];
-    }),
-  );
+  const selectedCategories = new Set<string>(selectedItems.map((i) => String(i.category)));
   const hasMinimum =
     (selectedCategories.has("top") && selectedCategories.has("bottom")) ||
     selectedCategories.has("dress");
@@ -74,13 +106,43 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <button
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 animate-fade-fast cursor-default bg-black/40"
+        tabIndex={-1}
+      />
 
       {/* Sheet */}
-      <div className="relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-4xl bg-card p-6 shadow-lift">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Log today's outfit"
+        className="relative flex max-h-[85vh] w-full animate-sheet-up flex-col overflow-hidden rounded-t-4xl bg-card p-6 shadow-lift"
+      >
+        {feedback && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-4xl bg-card">
+            <span
+              className={
+                feedback === "challenge" ? "animate-bounce text-6xl" : "animate-pop text-6xl"
+              }
+            >
+              {feedback === "challenge" ? "🎉" : "✅"}
+            </span>
+            <p className="display text-2xl">
+              {feedback === "challenge" ? "Challenge complete!" : "Outfit logged!"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {feedback === "challenge"
+                ? "Fresh ones are already waiting on your home screen."
+                : "See you tomorrow for the next one."}
+            </p>
+          </div>
+        )}
+
         <div className="mb-4 flex items-center justify-between">
           <h2 className="display text-xl">What did you wear?</h2>
-          <button onClick={onClose} className="text-sm text-muted-foreground">
+          <button onClick={onClose} className="text-sm font-bold text-muted-foreground">
             Cancel
           </button>
         </div>
@@ -93,6 +155,7 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
+                  aria-pressed={activeCategory === cat}
                   className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
                     activeCategory === cat
                       ? "bg-rose text-primary-foreground"
@@ -111,15 +174,24 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
                   key={item.id}
                   onClick={() => toggleItem(item.id)}
                   aria-label={item.name}
+                  aria-pressed={selectedIds.includes(item.id)}
                   className={`relative aspect-square overflow-hidden rounded-2xl border-2 transition-all ${
-                    selectedIds.includes(item.id) ? "scale-95 border-rose" : "border-transparent"
+                    selectedIds.includes(item.id)
+                      ? "scale-95 border-rose"
+                      : "border-transparent hover:border-border"
                   }`}
                 >
-                  <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                  {item.image ? (
+                    <img src={item.image} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center bg-muted text-xl">
+                      🧺
+                    </span>
+                  )}
                   {selectedIds.includes(item.id) && (
-                    <div className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose">
+                    <span className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose">
                       <span className="text-xs text-primary-foreground">✓</span>
-                    </div>
+                    </span>
                   )}
                 </button>
               ))}
@@ -131,8 +203,8 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
             </div>
 
             {/* Selected count + next */}
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between gap-3">
+              <p className="shrink-0 text-sm text-muted-foreground">
                 {selectedIds.length} item{selectedIds.length !== 1 ? "s" : ""} selected
               </p>
               <button
@@ -153,13 +225,25 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
 
         {step === "rate" && (
           <div className="flex flex-col items-center gap-6 py-4">
-            <p className="text-sm text-muted-foreground">How did you feel in this outfit?</p>
+            {/* Reminder of what's in the look */}
+            <div className="flex -space-x-2">
+              {selectedItems.slice(0, 4).map((item) => (
+                <img
+                  key={item.id}
+                  src={item.image}
+                  alt={item.name}
+                  className="h-11 w-11 rounded-full border-2 border-card object-cover shadow-polaroid"
+                />
+              ))}
+            </div>
+            <p className="-mt-2 text-sm text-muted-foreground">How did you feel in this outfit?</p>
 
             <div className="flex gap-4">
               {RATING_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setRating(opt.value)}
+                  aria-pressed={rating === opt.value}
                   className={`flex flex-col items-center gap-1 rounded-2xl p-3 transition-all ${
                     rating === opt.value ? "scale-110 bg-blush" : "hover:bg-muted"
                   }`}

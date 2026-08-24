@@ -38,6 +38,7 @@ function AddItem() {
   const [stage, setStage] = useState<Stage>("start");
   const [reviewed, setReviewed] = useState<Reviewed | null>(null);
   const [keptSeasons, setKeptSeasons] = useState<string[]>([]);
+  const [price, setPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fire, setFire] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -87,7 +88,7 @@ function AddItem() {
     const tags = { ...reviewed.tags, seasons: keptSeasons };
     if (reviewed.imagePath) {
       try {
-        await addItem(reviewed.imagePath, tags);
+        await addItem(reviewed.imagePath, tags, price ? parseFloat(price) : undefined);
         closetQuery.refetch();
       } catch (err) {
         console.warn("Saving to wardrobe failed:", err);
@@ -196,6 +197,33 @@ function AddItem() {
             ))}
           </div>
 
+          {/* Price right after tagging — the moment it's still fresh. Optional,
+              but every price powers the cost-per-wear tracker later. */}
+          <p className="mt-4 text-sm font-bold">What did it cost? 💶</p>
+          <p className="text-xs text-muted-foreground">
+            Optional — but it unlocks cost-per-wear for this piece.
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex items-center overflow-hidden rounded-xl border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
+              <span className="px-2.5 font-mono text-sm text-muted-foreground">EUR</span>
+              <input
+                type="number"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="0"
+                className="w-24 bg-transparent py-2 pr-2 text-sm outline-none"
+              />
+            </div>
+            {price && (
+              <button
+                onClick={() => setPrice("")}
+                className="text-xs font-bold text-muted-foreground"
+              >
+                clear
+              </button>
+            )}
+          </div>
+
           {error && <p className="mt-3 text-xs font-semibold text-destructive">{error}</p>}
 
           <button
@@ -227,6 +255,7 @@ function AddItem() {
               onClick={() => {
                 setStage("start");
                 setReviewed(null);
+                setPrice("");
               }}
               className="tappable rounded-3xl bg-secondary py-3.5 text-sm font-bold text-secondary-foreground"
             >

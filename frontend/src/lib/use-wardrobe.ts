@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ClosetItem, Outfit } from "./closet-data";
 import { closet, colors as fallbackColors } from "./closet-data";
 import {
+  fetchChallenges,
   fetchColors,
   fetchItem,
   fetchItems,
@@ -9,6 +10,7 @@ import {
   fetchSavedOutfits,
   fetchStats,
   generateOutfits,
+  type Challenge,
   type WardrobeStats,
 } from "./api";
 import { fetchWeather, getLocation } from "./weather";
@@ -135,8 +137,7 @@ export function useStats() {
   });
 }
 
-/**
- * Live weather for the Home screen. Runs only in the browser so the geolocation
+/** Live weather for the Home screen. Runs only in the browser so the geolocation
  * prompt is actually shown to the visitor (server renders the fallback coords
  * from VITE_DEFAULT_LAT/LON instead).
  */
@@ -149,6 +150,16 @@ export function useWeather() {
     },
     enabled: typeof window !== "undefined",
     staleTime: 15 * 60 * 1000, // weather doesn't need refetching every render
+  });
+}
+
+/** Active challenges for this device (auto-generates server-side when short). */
+export function useChallenges() {
+  return useQuery({
+    queryKey: ["challenges"],
+    queryFn: () => fetchChallenges(),
+    enabled: typeof window !== "undefined", // deviceId() reads localStorage
+    staleTime: 5 * 60 * 1000,
   });
 }
 

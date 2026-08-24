@@ -13,6 +13,7 @@ import { Home, Shirt, CalendarDays, Sparkles, ShoppingBag, Ruler } from "lucide-
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { QuickLog } from "@/components/QuickLog";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -206,6 +207,7 @@ function RootComponent() {
         👗
       </button>
       <QuickLog isOpen={quickLogOpen} onClose={() => setQuickLogOpen(false)} />
+      <Toaster position="top-center" />
     </QueryClientProvider>
   );
 }

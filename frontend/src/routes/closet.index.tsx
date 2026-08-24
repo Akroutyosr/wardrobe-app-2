@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Euro, Plus } from "lucide-react";
 import { categories, seasons } from "@/lib/closet-data";
 import { useCloset, useColors } from "@/lib/use-wardrobe";
 import { Sticker } from "@/components/scrapbook";
+import { SafeImage } from "@/components/ui-bits";
 import { categoryColor } from "@/lib/palette";
 
 export const Route = createFileRoute("/closet/")({
@@ -29,6 +30,7 @@ function Closet() {
   const { data: closet } = useCloset();
   const { data: colors } = useColors();
   const colorList = colors ?? [];
+  const unpricedCount = useMemo(() => closet.filter((i) => i.price == null).length, [closet]);
 
   const items = useMemo(
     () =>
@@ -53,12 +55,23 @@ function Closet() {
             {items.length} pieces showing · all already yours
           </p>
         </div>
-        <Link
-          to="/add"
-          className="tappable inline-flex items-center gap-1.5 rounded-full bg-rose px-4 py-2.5 text-sm font-extrabold text-primary-foreground shadow-lift"
-        >
-          <Plus size={17} strokeWidth={2.6} /> Add item
-        </Link>
+        <div className="flex shrink-0 gap-2">
+          {unpricedCount > 0 && (
+            <Link
+              to="/prices"
+              className="tappable inline-flex items-center gap-1.5 rounded-full bg-maize px-3.5 py-2.5 text-xs font-extrabold text-ink shadow-polaroid"
+              aria-label={`${unpricedCount} items still need a price`}
+            >
+              <Euro size={14} strokeWidth={2.6} /> {unpricedCount} unpriced
+            </Link>
+          )}
+          <Link
+            to="/add"
+            className="tappable inline-flex items-center gap-1.5 rounded-full bg-rose px-4 py-2.5 text-sm font-extrabold text-primary-foreground shadow-lift"
+          >
+            <Plus size={17} strokeWidth={2.6} /> Add item
+          </Link>
+        </div>
       </header>
 
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
@@ -116,11 +129,10 @@ function Closet() {
               className="tappable polaroid block p-2 transition-transform md:hover:scale-[1.02] md:hover:shadow-lg md:cursor-pointer"
             >
               <div className="relative">
-                <img
+                <SafeImage
                   src={item.image}
                   alt={item.name}
-                  loading="lazy"
-                  className="w-full rounded-[0.9rem] object-cover"
+                  className="aspect-square w-full rounded-[0.9rem] object-cover"
                 />
                 {item.cpw != null && (
                   <div className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2 py-0.5 text-[0.65rem] font-extrabold text-rose backdrop-blur-sm">

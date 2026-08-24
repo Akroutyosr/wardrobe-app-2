@@ -1,4 +1,5 @@
 import type { ClosetItem, Outfit } from "./closet-data";
+import { deviceId } from "./utils";
 
 /**
  * Phase 6: thin REST client for the FastAPI backend.
@@ -223,6 +224,7 @@ export function toClosetItem(a: ApiItem): ClosetItem {
     worn: a.worn,
     note: a.notes,
     ...(a.cost_per_wear != null ? { cpw: a.cost_per_wear } : {}),
+    ...(a.price != null ? { price: a.price } : {}),
   };
 }
 
@@ -399,11 +401,37 @@ export async function fetchSuggestedOutfit(): Promise<SuggestedOutfit | null> {
 export async function quickLogWear(
   itemIds: string[],
   rating: number,
-): Promise<{ outfit_id: string }> {
-  return fetchJson<{ outfit_id: string }>("/api/wear-log/quick-log", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ item_ids: itemIds, rating }),
+): Promise<{ outfit_id: string; challenges_completed?: string[] }> {
+  return fetchJson<{ outfit_id: string; challenges_completed?: string[] }>(
+    "/api/wear-log/quick-log",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Device-Id": deviceId() },
+      body: JSON.stringify({ item_ids: itemIds, rating }),
+    },
+  );
+}
+
+// --- Wardrobe challenges ------------------------------------------------------
+
+export type Challenge = {
+  id: string;
+  device_id: string;
+  type: string;
+  title: string;
+  description: string;
+  target_item_id: string | null;
+  target_count: number;
+  current_count: number;
+  status: "active" | "completed" | "expired";
+  started_at: string;
+  expires_at: string;
+  completed_at: string | null;
+};
+
+export async function fetchChallenges(): Promise<Challenge[]> {
+  return fetchJson<Challenge[]>("/api/challenges", {
+    headers: { "X-Device-Id": deviceId() },
   });
 }
 
@@ -485,11 +513,20 @@ export async function uploadPhoto(file: File): Promise<{ image_path: string; tag
   );
 }
 
-export async function addItem(imagePath: string, tags: Tags): Promise<ClosetItem> {
+export async function addItem(
+  imagePath: string,
+  tags: Tags,
+  price?: number,
+  currency: string = "EUR",
+): Promise<ClosetItem> {
   const data = await fetchJson<ApiItem>("/api/items", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ image_path: imagePath, tags }),
+    body: JSON.stringify({
+      image_path: imagePath,
+      tags,
+      ...(price != null ? { price, currency } : {}),
+    }),
   });
   return toClosetItem(data);
 }

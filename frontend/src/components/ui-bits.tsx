@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { ClosetItem } from "@/lib/closet-data";
 
 export function Chip({
@@ -71,12 +71,42 @@ export function ItemThumb({
       className={`polaroid tappable p-1.5 ${className}`}
       style={{ transform: `rotate(${rotate}deg)` }}
     >
-      <img
+      <SafeImage
         src={item.image}
         alt={item.name}
-        loading="lazy"
         className="h-full w-full rounded-[0.9rem] object-cover"
       />
     </div>
+  );
+}
+
+/**
+ * An <img> that degrades to a tidy basket placeholder when the file is gone
+ * (deleted on the server, or a mock entry with no real photo) instead of
+ * rendering the browser's broken-image icon.
+ */
+export function SafeImage({
+  src,
+  alt,
+  className = "",
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed || !src) {
+    return (
+      <span
+        role="img"
+        aria-label={alt}
+        className={`flex items-center justify-center bg-muted text-2xl ${className}`}
+      >
+        🧺
+      </span>
+    );
+  }
+  return (
+    <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} className={className} />
   );
 }
