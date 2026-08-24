@@ -201,7 +201,7 @@ function LookPage() {
                   key={n}
                   onClick={() => rate(n)}
                   aria-label={`${n} stars`}
-                  className="tappable"
+                  className="tappable flex h-11 w-11 items-center justify-center"
                 >
                   <Star
                     size={26}

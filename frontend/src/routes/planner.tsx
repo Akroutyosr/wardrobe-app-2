@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
 import { Plus, Star } from "lucide-react";
 import { toast } from "sonner";
 import { useCloset, useDailyDeck, itemsByIds } from "@/lib/use-wardrobe";
-import { IMAGE_BASE, fetchPlannerWeek, rateOutfit } from "@/lib/api";
+import { IMAGE_BASE, fetchPlannerWeek, rateOutfit, setPlannerDay } from "@/lib/api";
 import { dayColor } from "@/lib/palette";
 
 export const Route = createFileRoute("/planner")({
@@ -54,11 +54,21 @@ function Planner() {
   const [picking, setPicking] = useState<number | null>(null);
   const [local, setLocal] = useState<Record<string, { outfitId?: string; rating?: number }>>({});
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const { data: weekRows, isLoading: weekLoading } = useQuery({
+  const { data: week, isLoading: weekLoading } = useQuery({
     queryKey: ["planner/week", days[0]!.iso, days[6]!.iso],
     queryFn: () => fetchPlannerWeek(days[0]!.iso, days[6]!.iso),
     staleTime: 30 * 1000,
+  });
+  const weekRows = week?.outfits;
+  const savedPlans = week?.plans ?? {};
+
+  const planMutation = useMutation({
+    mutationFn: ({ day, outfitId }: { day: string; outfitId: string }) =>
+      setPlannerDay(day, outfitId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["planner/week"] }),
+    onError: () => toast.error("Couldn't save that plan — try again"),
   });
 
   const rowsByDate = useMemo(() => new Map((weekRows ?? []).map((o) => [o.date, o])), [weekRows]);
@@ -68,7 +78,8 @@ function Planner() {
   ): { id: string; title: string; items: PlannedItem[]; rating: number } | null => {
     const localPick = local[day.iso];
     const row = rowsByDate.get(day.iso);
-    const id = localPick?.outfitId ?? row?.id ?? null;
+    // A fresh local pick wins until the server confirms it (invalidation).
+    const id = localPick?.outfitId ?? savedPlans[day.iso] ?? row?.id ?? null;
     if (!id) return null;
 
     if (row && row.id === id) {
@@ -85,8 +96,11 @@ function Planner() {
       };
     }
 
-    const deckOutfit = outfits.find((o) => o.id === id);
-    if (!deckOutfit) return null;
+    const deckOutfit = outfits?.find((o) => o.id === id);
+    if (!deckOutfit) {
+      // Planned on another day/session — the look page resolves it by id.
+      return { id, title: "Planned look", items: [], rating: localPick?.rating ?? 0 };
+    }
     return {
       id: deckOutfit.id,
       title: deckOutfit.title,
@@ -101,8 +115,10 @@ function Planner() {
   };
 
   const fill = (dayIndex: number, outfitId: string) => {
-    setLocal((p) => ({ ...p, [days[dayIndex]!.iso]: { outfitId } }));
+    const day = days[dayIndex]!.iso;
+    setLocal((p) => ({ ...p, [day]: { outfitId } }));
     setPicking(null);
+    planMutation.mutate({ day, outfitId });
   };
 
   const rate = (dayIndex: number, rating: number) => {
@@ -186,17 +202,17 @@ function Planner() {
                 </button>
               )}
 
-              <div className="flex justify-center gap-0.5 pt-1.5">
+              <div className="flex justify-center gap-1 pt-1.5">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
                     key={n}
                     onClick={() => plan && rate(i, n)}
                     disabled={!plan}
                     aria-label={`Rate ${day.label} ${n} stars`}
-                    className="disabled:opacity-30"
+                    className="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-30"
                   >
                     <Star
-                      size={13}
+                      size={17}
                       className={plan && n <= plan.rating ? "fill-rose text-rose" : "text-ink/30"}
                     />
                   </button>

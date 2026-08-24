@@ -61,10 +61,13 @@ function AddItem() {
       setStage("review");
     } catch (err) {
       // Tagging is required to add an item — never pretend it worked. Show an
-      // honest error with a retry instead of demo tags that can't be saved.
+      // honest error (including budget-limit messages) with a retry.
       console.warn("Tagging unavailable:", err);
+      const msg = err instanceof Error ? err.message : "";
       setError(
-        "Couldn't tag that photo — the styling service is unreachable right now. Check your connection and try again.",
+        msg.startsWith("[api]")
+          ? "Couldn't tag that photo — the styling service is unreachable right now. Check your connection and try again."
+          : msg || "Couldn't tag that photo — please try again.",
       );
       setStage("start");
     }

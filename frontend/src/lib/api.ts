@@ -40,7 +40,18 @@ async function fetchJson<T>(
       ...init,
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`[api] ${res.status} on ${path}`);
+    if (!res.ok) {
+      // Surface the backend's human explanation (e.g. daily-budget 429s)
+      // instead of a bare status code — callers show it directly.
+      let detail = "";
+      try {
+        const body = (await res.json()) as { detail?: unknown };
+        if (body?.detail) detail = String(body.detail);
+      } catch {
+        // non-JSON error body — fall through to the generic message
+      }
+      throw new Error(detail || `[api] ${res.status} on ${path}`);
+    }
     return (await res.json()) as T;
   } catch (err) {
     throw new Error(`[api] request failed: ${path} — ${String(err)}`, { cause: err });
@@ -358,10 +369,22 @@ export type PlannerOutfit = ApiOutfit & {
 export async function fetchPlannerWeek(
   startDate: string,
   endDate: string,
-): Promise<PlannerOutfit[]> {
+): Promise<{ outfits: PlannerOutfit[]; plans: Record<string, string> }> {
   const q = new URLSearchParams({ start_date: startDate, end_date: endDate });
-  const data = await fetchJson<{ outfits: PlannerOutfit[] }>(`/api/planner/week?${q}`);
-  return data.outfits;
+  const data = await fetchJson<{ outfits: PlannerOutfit[]; plans?: Record<string, string> }>(
+    `/api/planner/week?${q}`,
+    { headers: { "X-Device-Id": deviceId() } },
+  );
+  return { outfits: data.outfits, plans: data.plans ?? {} };
+}
+
+/** Persist a '+' pick so the plan survives refreshes. */
+export async function setPlannerDay(day: string, outfitId: string): Promise<void> {
+  await fetchJson("/api/planner/day", {
+    method: "PUT",
+    headers: { "content-type": "application/json", "X-Device-Id": deviceId() },
+    body: JSON.stringify({ day, outfit_id: outfitId }),
+  });
 }
 
 // --- Feedback ---------------------------------------------------------------

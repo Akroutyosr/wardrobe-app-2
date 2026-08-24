@@ -44,7 +44,7 @@ function DeckLoading() {
     return () => clearInterval(t);
   }, [steps.length]);
   return (
-    <div>
+    <div aria-live="polite">
       <div className="flex items-center gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose/10">
           <Loader2 className="animate-spin text-rose" size={20} />
@@ -197,7 +197,7 @@ function Today() {
       <section className="relative overflow-hidden rounded-4xl bg-card shadow-lift lg:sticky lg:top-8">
         <Confetti fire={fire} />
 
-        <div className="bg-gradient-to-b from-sky to-sky/70 px-5 pb-6 pt-7 text-white">
+        <div className="bg-gradient-to-b from-sky to-sky/70 px-5 pb-6 pt-7 text-ink">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-6xl font-extrabold leading-none">{temp ?? "…"}°</p>

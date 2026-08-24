@@ -160,6 +160,38 @@ CREATE INDEX IF NOT EXISTS idx_challenges_device
 CREATE INDEX IF NOT EXISTS idx_challenges_item
     ON challenges(target_item_id)
     WHERE target_item_id IS NOT NULL;
+
+-- Weekly planner assignments: which outfit is slotted for which day.
+-- Kept apart from wear_log ON PURPOSE: planning Friday must never count as
+-- having worn anything (streak/stats read wear_log, never this table).
+-- One row per device+day, so re-planning overwrites cleanly.
+CREATE TABLE IF NOT EXISTS planner_days (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    outfit_id TEXT NOT NULL,
+    created_at TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_planner_device_day
+    ON planner_days(device_id, day);
+
+-- Model-usage metering: one counter per (UTC day, expensive endpoint), bumped
+-- on every AI call so daily caps can protect the free-tier budget.
+CREATE TABLE IF NOT EXISTS api_usage (
+    day TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, endpoint)
+);
+
+-- Tag cache: photo content hash -> tagging-pipeline result. Re-uploading the
+-- identical photo skips the vision model entirely.
+CREATE TABLE IF NOT EXISTS tag_cache (
+    content_hash TEXT PRIMARY KEY,
+    tags_json TEXT NOT NULL,
+    created_at TEXT
+);
 """
 
 
@@ -1026,6 +1058,101 @@ def suggest_todays_outfit() -> dict | None:
         "items": suggested,
         "confidence_label": f"based on your typical {day_name} outfits",
     }
+
+# --- Model usage metering & tag cache --------------------------------------------
+
+
+def record_usage(endpoint: str) -> int:
+    """Bumps today's counter for an expensive endpoint. Returns the new count."""
+    init_db()
+    today = datetime.now(timezone.utc).date().isoformat()
+    conn = get_connection()
+    row = conn.execute(
+        """INSERT INTO api_usage (day, endpoint, count) VALUES (%s, %s, 1)
+           ON CONFLICT (day, endpoint) DO UPDATE SET count = api_usage.count + 1
+           RETURNING count""",
+        (today, endpoint),
+    ).fetchone()
+    conn.commit()
+    conn.close()
+    return row["count"]
+
+
+def get_usage_today(endpoint: str) -> int:
+    init_db()
+    today = datetime.now(timezone.utc).date().isoformat()
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT count FROM api_usage WHERE day = %s AND endpoint = %s",
+        (today, endpoint),
+    ).fetchone()
+    conn.close()
+    return row["count"] if row else 0
+
+
+def get_cached_tags(content_hash: str) -> dict | None:
+    """Previously-computed tags for an identical photo, or None."""
+    init_db()
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT tags_json FROM tag_cache WHERE content_hash = %s", (content_hash,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    try:
+        return json.loads(row["tags_json"])
+    except Exception:
+        return None
+
+
+def save_tag_cache(content_hash: str, tags: dict) -> None:
+    init_db()
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO tag_cache (content_hash, tags_json, created_at)
+           VALUES (%s, %s, %s)
+           ON CONFLICT (content_hash) DO NOTHING""",
+        (content_hash, json.dumps(tags), datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
+
+# --- Weekly planner -------------------------------------------------------------
+
+
+def set_planner_day(device_id: str, day: str, outfit_id: str) -> None:
+    """Assigns an outfit to a planner day. Upsert: re-planning overwrites."""
+    init_db()
+    conn = get_connection()
+    conn.execute(
+        """INSERT INTO planner_days (id, device_id, day, outfit_id, created_at)
+           VALUES (%s, %s, %s, %s, %s)
+           ON CONFLICT (device_id, day) DO UPDATE SET outfit_id = EXCLUDED.outfit_id""",
+        (
+            str(uuid.uuid4())[:8],
+            device_id,
+            day,
+            outfit_id,
+            datetime.now(timezone.utc).isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_planner_days(device_id: str, start_date: str, end_date: str) -> dict[str, str]:
+    """{day: outfit_id} assignments for this device within [start_date, end_date]."""
+    init_db()
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT day, outfit_id FROM planner_days
+           WHERE device_id = %s AND day BETWEEN %s AND %s""",
+        (device_id, start_date, end_date),
+    ).fetchall()
+    conn.close()
+    return {r["day"]: r["outfit_id"] for r in rows}
 
 
 def save_generated_outfit(item_ids: list[str], reasoning: str, context: dict) -> str:

@@ -57,12 +57,14 @@ from app.storage.db import (
     get_item,
     get_latest_quiz_result,
     get_outfits_for_week,
+    get_planner_days,
     get_recent_outfit_deck,
     get_recent_rated_outfits,
     get_saved_outfits,
     get_saved_fitting_photo,
     get_tryon_session,
     get_wear_counts,
+    get_cached_tags,
     init_db,
     list_items,
     log_outfit_wear,
@@ -72,10 +74,13 @@ from app.storage.db import (
     save_fitting_photo,
     save_quiz_preference,
     save_quiz_result,
+    save_tag_cache,
     set_outfit_saved,
     set_item_price,
+    set_planner_day,
     suggest_todays_outfit,
     update_tryon_session,
+    record_usage,
 )
 from app.storage.ingest import ingest_item
 from app.storage.vectors import find_similar, item_to_text
@@ -206,6 +211,49 @@ def _save_personal_upload(upload: UploadFile) -> str:
     with dest.open("wb") as out:
         shutil.copyfileobj(upload.file, out)
     return f"data/personal_uploads/{filename}"
+
+
+# --- AI budget guardrails -------------------------------------------------------
+#
+# Expensive endpoints meter themselves against per-day caps (UTC). Caps are
+# env-overridable: USAGE_CAP_UPLOAD / USAGE_CAP_BUY / USAGE_CAP_GENERATE.
+
+_DEFAULT_CAPS = {"upload": 80, "buy": 25, "generate": 40}
+
+
+def _file_hash(path: str) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 16), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _enforce_daily_cap(endpoint: str) -> None:
+    cap = int(
+        os.environ.get(f"USAGE_CAP_{endpoint.upper()}") or _DEFAULT_CAPS.get(endpoint, 50)
+    )
+    count = record_usage(endpoint)
+    if count > cap:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Today's AI budget for this feature is used up "
+                f"({cap} runs). Fresh budget tomorrow — your closet isn't going anywhere."
+            ),
+        )
+
+
+def _tag_photo_cached(image_path: str) -> dict:
+    """Tag a photo, but only pay the vision model once per identical file."""
+    cached = get_cached_tags(_file_hash(image_path))
+    if cached is not None:
+        return cached
+    tags = tag_photo(image_path).model_dump()
+    save_tag_cache(_file_hash(image_path), tags)
+    return tags
 
 
 @app.get("/api/health")
@@ -350,6 +398,8 @@ def api_generate_outfits(req: OutfitRequest) -> dict:
     # repeat visits (home page) skip the slow LLM round-trip.
     deck = get_recent_outfit_deck(vars(ctx))
     if not deck:
+        # Only a cache miss costs budget — repeat visits stay free.
+        _enforce_daily_cap("generate")
         shortlist = retrieve_candidates(ctx)
         deck = generate_outfits(shortlist, ctx)
     counts = get_wear_counts()
@@ -401,9 +451,12 @@ def api_get_outfit(outfit_id: str) -> dict:
 
 
 @app.get("/api/planner/week")
-def api_planner_week(start_date: str, end_date: str) -> dict:
+def api_planner_week(
+    start_date: str, end_date: str, x_device_id: str = Header(...)
+) -> dict:
     """Weekly Planner: generated outfits for [start_date, end_date], one per
-    day, resolved into the same DTO the deck endpoints return."""
+    day, resolved into the same DTO the deck endpoints return — plus this
+    device's explicit day assignments (the '+' picks), keyed by ISO date."""
     rows = get_outfits_for_week(start_date, end_date)
     counts = get_wear_counts()
     outfits = []
@@ -412,7 +465,24 @@ def api_planner_week(start_date: str, end_date: str) -> dict:
         dto["date"] = str(row["day"])
         dto["rating"] = row.get("rating")
         outfits.append(dto)
-    return {"outfits": outfits}
+    return {
+        "outfits": outfits,
+        "plans": get_planner_days(x_device_id, start_date, end_date),
+    }
+
+
+class PlannerDayRequest(BaseModel):
+    day: str
+    outfit_id: str
+
+
+@app.put("/api/planner/day")
+def api_set_planner_day(req: PlannerDayRequest, x_device_id: str = Header(...)) -> dict:
+    """Persist a '+' pick so the plan survives refreshes and other devices."""
+    if get_generated_outfit(req.outfit_id) is None:
+        raise HTTPException(status_code=404, detail=f"No outfit with id {req.outfit_id}")
+    set_planner_day(x_device_id, req.day, req.outfit_id)
+    return {"status": "ok", "day": req.day, "outfit_id": req.outfit_id}
 
 
 class QuizPreferenceRequest(BaseModel):
@@ -590,9 +660,16 @@ def api_wear_log_recent(limit: int = 10) -> dict:
 
 @app.post("/api/items/upload")
 async def api_upload_item(upload: UploadFile = File(...)) -> dict:
-    """Tag an uploaded photo without saving it — the frontend review step."""
+    """Tag an uploaded photo without saving it — the frontend review step.
+    Identical re-uploads are served from the tag cache without a vision call;
+    the daily cap is only consumed on a cache miss."""
     image_path = _save_upload(upload)
+    cached = get_cached_tags(_file_hash(image_path))
+    if cached is not None:
+        return {"image_path": image_path, "tags": cached, "cached": True}
+    _enforce_daily_cap("upload")
     item = tag_photo(image_path)
+    save_tag_cache(_file_hash(image_path), item.model_dump())
     return {"image_path": image_path, "tags": item.model_dump()}
 
 
@@ -616,6 +693,9 @@ async def api_should_i_buy(
     against the wardrobe's real average CPW when any prices are set."""
     image_path = _save_upload(upload)
 
+    # The agent always runs its LLM loop, so the buy budget is spent here.
+    _enforce_daily_cap("buy")
+
     price_context = ""
     if price:
         cpw_stats = get_wardrobe_cpw_stats()
@@ -629,7 +709,25 @@ async def api_should_i_buy(
             )
 
     verdict, tool_log = evaluate_purchase(image_path, verbose=False, extra_context=price_context)
-    new_item = tag_photo(image_path).model_dump()
+
+    # Reuse the tag the agent already computed (tag_new_item is a required
+    # step) instead of paying for a second vision pass. Only fall back to a
+    # direct call — or the identical-photo cache — when it somehow didn't run.
+    new_item = next(
+        (
+            t["result"]
+            for t in reversed(tool_log)
+            if t["name"] == "tag_new_item"
+            and isinstance(t.get("result"), dict)
+            and "error" not in t["result"]
+        ),
+        None,
+    )
+    if new_item is None:
+        new_item = _tag_photo_cached(image_path)
+    else:
+        save_tag_cache(_file_hash(image_path), new_item)
+
     return {
         "image_path": image_path,
         "verdict": verdict,

@@ -121,7 +121,10 @@ export function QuickLog({ isOpen, onClose, preselectedItemIds = [] }: Props) {
         className="relative flex max-h-[85vh] w-full animate-sheet-up flex-col overflow-hidden rounded-t-4xl bg-card p-6 shadow-lift"
       >
         {feedback && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-4xl bg-card">
+          <div
+            aria-live="polite"
+            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-t-4xl bg-card"
+          >
             <span
               className={
                 feedback === "challenge" ? "animate-bounce text-6xl" : "animate-pop text-6xl"
