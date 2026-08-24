@@ -220,6 +220,24 @@ function Today() {
         </div>
       )}
 
+      {/* Challenges sit ABOVE the outfit deck so they're instantly reachable —
+          even while a fresh deck is still generating below. */}
+      {challenges.length > 0 && (
+        <section className="mb-4 lg:col-span-2">
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="display text-xl">Your challenges</h2>
+            <span className="font-mono text-[0.62rem] font-bold uppercase tracking-widest text-muted-foreground">
+              {challenges.length} active
+            </span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-3">
+            {challenges.map((c) => (
+              <ChallengeCard key={c.id} challenge={c} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Weather card with the outfit popping in below it */}
       <section className="relative overflow-hidden rounded-4xl bg-card shadow-lift lg:sticky lg:top-8">
         <Confetti fire={fire} />
@@ -317,23 +335,6 @@ function Today() {
             <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-wide">day streak</p>
           </div>
         </div>
-
-        {/* challenges: auto-generated from real wear data, advanced on every log */}
-        {challenges.length > 0 && (
-          <section className="mt-4">
-            <div className="mb-2 flex items-baseline justify-between">
-              <h2 className="display text-xl">Your challenges</h2>
-              <span className="font-mono text-[0.62rem] font-bold uppercase tracking-widest text-muted-foreground">
-                {challenges.length} active
-              </span>
-            </div>
-            <div className="space-y-2">
-              {challenges.map((c) => (
-                <ChallengeCard key={c.id} challenge={c} />
-              ))}
-            </div>
-          </section>
-        )}
 
         {/* game-stat score: avg cost-per-wear once prices exist, versatility before that */}
         <section className="mt-4 overflow-hidden rounded-4xl bg-ink text-background shadow-lift">

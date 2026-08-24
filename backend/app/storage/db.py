@@ -306,11 +306,18 @@ def _conninfo() -> str:
 
 
 def get_connection():
-    """Open a new Postgres connection with dict-style rows."""
+    """Open a new Postgres connection with dict-style rows. TCP keepalives
+    bound how long a wedged connection (e.g. a pooler that dropped its server
+    side mid-outage) can hang a request: dead peers surface in ~1 minute
+    instead of never."""
     return psycopg.connect(
         _conninfo(),
         row_factory=psycopg.rows.dict_row,
         connect_timeout=int(os.environ.get("DB_CONNECT_TIMEOUT", "8")),
+        keepalives=1,
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=3,
     )
 
 
