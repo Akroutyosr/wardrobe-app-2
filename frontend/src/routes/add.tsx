@@ -5,7 +5,6 @@ import { Sticker } from "@/components/scrapbook";
 import { Confetti } from "@/components/Confetti";
 import { addItem, uploadPhoto, type Tags } from "@/lib/api";
 import { useCloset } from "@/lib/use-wardrobe";
-import preview from "@/assets/item-cardigan.jpg";
 
 export const Route = createFileRoute("/add")({
   head: () => ({
@@ -39,6 +38,7 @@ function AddItem() {
   const [reviewed, setReviewed] = useState<Reviewed | null>(null);
   const [keptSeasons, setKeptSeasons] = useState<string[]>([]);
   const [price, setPrice] = useState("");
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fire, setFire] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -60,42 +60,33 @@ function AddItem() {
       setKeptSeasons(seasons);
       setStage("review");
     } catch (err) {
-      // Backend not reachable — fall back to the old mock flow so the demo
-      // still shows something.
-      console.warn("Tagging unavailable, using demo review:", err);
-      setReviewed({
-        imageUrl: preview,
-        imagePath: "",
-        seasons: ["fall"],
-        tags: {
-          category: "top",
-          primary_color: "cream",
-          subcategory: "cardigan",
-          pattern: "solid",
-          formality: 2,
-          seasons: ["fall"],
-          fabric_guess: "knit",
-          notes: "Demo fallback tags",
-        },
-      });
-      setKeptSeasons(["fall"]);
-      setStage("review");
+      // Tagging is required to add an item — never pretend it worked. Show an
+      // honest error with a retry instead of demo tags that can't be saved.
+      console.warn("Tagging unavailable:", err);
+      setError(
+        "Couldn't tag that photo — the styling service is unreachable right now. Check your connection and try again.",
+      );
+      setStage("start");
     }
   };
 
   const save = async () => {
-    if (!reviewed) return;
+    if (!reviewed || !reviewed.imagePath) return;
     const tags = { ...reviewed.tags, seasons: keptSeasons };
-    if (reviewed.imagePath) {
-      try {
-        await addItem(reviewed.imagePath, tags, price ? parseFloat(price) : undefined);
-        closetQuery.refetch();
-      } catch (err) {
-        console.warn("Saving to wardrobe failed:", err);
-      }
+    setSaving(true);
+    try {
+      await addItem(reviewed.imagePath, tags, price ? parseFloat(price) : undefined);
+      closetQuery.refetch();
+      setSaving(false);
+      setStage("done");
+      setFire((f) => f + 1);
+    } catch (err) {
+      console.warn("Saving to wardrobe failed:", err);
+      setSaving(false);
+      setError(
+        "The tags look good but the closet didn't accept the save — check your connection and try again.",
+      );
     }
-    setStage("done");
-    setFire((f) => f + 1);
   };
 
   const chipList = reviewed
@@ -122,6 +113,12 @@ function AddItem() {
           One photo is all we need — we'll handle the boring tagging part.
         </p>
       </header>
+
+      {error && (
+        <p className="mb-4 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+          {error}
+        </p>
+      )}
 
       <input
         ref={fileInput}
@@ -224,13 +221,18 @@ function AddItem() {
             )}
           </div>
 
-          {error && <p className="mt-3 text-xs font-semibold text-destructive">{error}</p>}
+          {saving && (
+            <p className="mt-3 text-center text-xs font-semibold text-muted-foreground">
+              Saving — hang on a moment
+            </p>
+          )}
 
           <button
             onClick={save}
-            className="tappable mt-5 w-full rounded-3xl bg-primary py-4 text-base font-bold text-primary-foreground"
+            disabled={saving}
+            className="tappable mt-5 w-full rounded-3xl bg-primary py-4 text-base font-bold text-primary-foreground disabled:opacity-60"
           >
-            Add to my closet
+            {saving ? "Adding to your closet…" : "Add to my closet"}
           </button>
         </div>
       )}

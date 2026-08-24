@@ -6,7 +6,6 @@ import { shouldIBuy, type VerdictResult } from "@/lib/api";
 import { Confetti } from "@/components/Confetti";
 import { Stamp, Barcode, DashRule } from "@/components/scrapbook";
 import { categoryColor } from "@/lib/palette";
-import candidate from "@/assets/item-blazer.jpg";
 
 export const Route = createFileRoute("/should-i-buy")({
   validateSearch: (search: { hint?: unknown }) => {
@@ -38,6 +37,8 @@ function ShouldIBuy() {
   const [stage, setStage] = useState<Stage>("start");
   const [fire, setFire] = useState(0);
   const [verdict, setVerdict] = useState<VerdictResult | null>(null);
+  const [agentFailed, setAgentFailed] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [price, setPrice] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const { data: closet } = useCloset();
@@ -45,16 +46,18 @@ function ShouldIBuy() {
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     setStage("loading");
+    setVerdict(null);
+    setAgentFailed(false);
+    setPhotoUrl(URL.createObjectURL(file));
     try {
       const result = await shouldIBuy(file, price ? parseFloat(price) : undefined);
       setVerdict(result);
       setStage("verdict");
       setFire((f) => f + 1);
     } catch (err) {
-      console.warn("Agent unavailable, showing demo verdict:", err);
-      setVerdict(null);
+      console.warn("Agent unavailable:", err);
+      setAgentFailed(true);
       setStage("verdict");
-      setFire((f) => f + 1);
     }
   };
 
@@ -166,7 +169,29 @@ function ShouldIBuy() {
         </div>
       )}
 
-      {stage === "verdict" && (
+      {stage === "verdict" && agentFailed && (
+        <div className="rounded-4xl bg-card p-10 text-center shadow-polaroid">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-3xl">
+            📵
+          </div>
+          <h2 className="display mt-5 text-3xl">The agent couldn&apos;t reach your closet</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+            No verdict was produced — nothing was checked, so no receipt. This is usually a
+            connection hiccup; your photo wasn&apos;t kept.
+          </p>
+          <button
+            onClick={() => {
+              setAgentFailed(false);
+              setStage("start");
+            }}
+            className="tappable mt-6 inline-flex items-center gap-2 rounded-full bg-rose px-6 py-3 text-sm font-extrabold text-primary-foreground"
+          >
+            <RotateCcw size={16} /> Try again
+          </button>
+        </div>
+      )}
+
+      {stage === "verdict" && !agentFailed && verdict && (
         <div className="w-full space-y-5 md:mx-auto md:max-w-md">
           <div className="receipt animate-print relative px-6 py-7">
             <div className="text-center">
@@ -179,22 +204,18 @@ function ShouldIBuy() {
 
             <div className="space-y-2 text-[0.8rem]">
               <div className="flex justify-between font-bold">
-                <span>1× {verdict ? itemSummary(verdict) : "THE TEMPTING THING"}</span>
+                <span>1× {itemSummary(verdict)}</span>
               </div>
               <p className="pl-3 text-[0.7rem] opacity-70">the tempting thing</p>
 
               <p className="pt-2 text-[0.7rem] uppercase tracking-widest opacity-70">pairs with</p>
               {pairs ?? (
-                <p className="pl-3 text-[0.7rem] opacity-70">(agent unavailable — demo copy)</p>
+                <p className="pl-3 text-[0.7rem] opacity-70">(no specific matches listed)</p>
               )}
 
               <div className="flex justify-between pt-2 text-[0.7rem]">
                 <span>VERSATILITY</span>
-                <span>
-                  {verdict
-                    ? `${versatilityCount(verdict)} pieces match`
-                    : "checked against your closet"}
-                </span>
+                <span>{versatilityCount(verdict)} pieces match</span>
               </div>
             </div>
 
@@ -214,40 +235,43 @@ function ShouldIBuy() {
             </p>
           </div>
 
-          <div className="relative rounded-3xl bg-card p-5 shadow-polaroid">
-            <h2 className="display text-2xl">One gentle heads-up 🤔</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {verdict
-                ? "Read the reasoning below — it's grounded in what your agent actually found in your wardrobe."
-                : "You own something in this family already. Still different enough to earn its hanger — worth a side-by-side."}
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="overflow-hidden rounded-3xl bg-sky p-2 text-ink">
-                <img
-                  src={closet[0]?.image ?? candidate}
-                  alt="Your twin piece"
-                  className="w-full rounded-2xl"
-                  loading="lazy"
-                />
-                <p className="px-1 pt-2 font-mono text-[0.65rem] font-bold">
-                  YOURS · WORN {closet[0]?.worn ?? 0}×
+          {(() => {
+            // Side-by-side only when the agent actually found a real twin.
+            const twin = (findPairs(verdict) ?? [])
+              .map((p) => closet.find((i) => i.id === p.id))
+              .find(Boolean);
+            if (!twin || !photoUrl) return null;
+            return (
+              <div className="relative rounded-3xl bg-card p-5 shadow-polaroid">
+                <h2 className="display text-2xl">One gentle heads-up 🤔</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Grounded in what the agent actually found in your wardrobe.
                 </p>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="overflow-hidden rounded-3xl bg-sky p-2 text-ink">
+                    <img
+                      src={twin.image}
+                      alt={twin.name}
+                      className="w-full rounded-2xl"
+                      loading="lazy"
+                    />
+                    <p className="px-1 pt-2 font-mono text-[0.65rem] font-bold">
+                      YOURS · WORN {twin.worn}×
+                    </p>
+                  </div>
+                  <div className="overflow-hidden rounded-3xl bg-blossom p-2 text-ink">
+                    <img src={photoUrl} alt="The new one" className="w-full rounded-2xl" />
+                    <p className="px-1 pt-2 font-mono text-[0.65rem] font-bold">NEW · TAGGED</p>
+                  </div>
+                </div>
               </div>
-              <div className="overflow-hidden rounded-3xl bg-blossom p-2 text-ink">
-                <img
-                  src={candidate}
-                  alt="The new one"
-                  className="w-full rounded-2xl"
-                  loading="lazy"
-                />
-                <p className="px-1 pt-2 font-mono text-[0.65rem] font-bold">NEW · TAGGED</p>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           <button
             onClick={() => {
               setVerdict(null);
+              setPhotoUrl(null);
               setStage("start");
             }}
             className="tappable flex w-full items-center justify-center gap-2 rounded-3xl bg-rose py-4 text-sm font-extrabold text-primary-foreground"

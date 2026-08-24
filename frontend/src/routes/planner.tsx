@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
 import { Plus, Star } from "lucide-react";
-import { useCloset, useOutfits, itemsByIds } from "@/lib/use-wardrobe";
+import { toast } from "sonner";
+import { useCloset, useDailyDeck, itemsByIds } from "@/lib/use-wardrobe";
 import { IMAGE_BASE, fetchPlannerWeek, rateOutfit } from "@/lib/api";
 import { dayColor } from "@/lib/palette";
 
@@ -49,7 +50,7 @@ function weekDays() {
 function Planner() {
   const days = useMemo<PlannerDay[]>(weekDays, []);
   const { data: closet } = useCloset();
-  const { data: outfits } = useOutfits(); // current deck, for the "+" picker
+  const { data: outfits } = useDailyDeck(); // today's deck, for the "+" picker
   const [picking, setPicking] = useState<number | null>(null);
   const [local, setLocal] = useState<Record<string, { outfitId?: string; rating?: number }>>({});
   const navigate = useNavigate();
@@ -110,7 +111,7 @@ function Planner() {
     const id = local[day.iso]?.outfitId ?? row?.id;
     if (!id) return;
     setLocal((p) => ({ ...p, [day.iso]: { ...p[day.iso], rating } }));
-    void rateOutfit(id, rating).catch(() => {});
+    void rateOutfit(id, rating).catch(() => toast.error("Couldn't save that rating — try again"));
   };
 
   const planned = days.filter((d) => planFor(d) !== null).length;
@@ -214,7 +215,7 @@ function Planner() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 px-4 pb-6">
           <div className="animate-print w-full max-w-[28rem] rounded-3xl bg-card p-5 shadow-lift">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="display text-2xl">Pick a saved look</h2>
+              <h2 className="display text-2xl">Pick one of today's looks</h2>
               <button
                 onClick={() => setPicking(null)}
                 className="tappable rounded-full bg-muted px-3 py-1 text-xs font-bold"
@@ -223,7 +224,14 @@ function Planner() {
               </button>
             </div>
             <div className="max-h-[50vh] space-y-2 overflow-y-auto">
-              {outfits.map((o, n) => (
+              {(outfits ?? []).length === 0 && (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  {outfits === undefined
+                    ? "Today's looks are still being styled…"
+                    : "No looks yet — generate one on the home screen first."}
+                </p>
+              )}
+              {(outfits ?? []).map((o, n) => (
                 <button
                   key={o.id}
                   onClick={() => fill(picking, o.id)}

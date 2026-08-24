@@ -1,6 +1,7 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { ClosetItem, Outfit } from "./closet-data";
-import { closet, colors as fallbackColors } from "./closet-data";
+import { colors as fallbackColors } from "./closet-data";
 import {
   fetchChallenges,
   fetchColors,
@@ -13,28 +14,29 @@ import {
   type Challenge,
   type WardrobeStats,
 } from "./api";
-import { fetchWeather, getLocation } from "./weather";
+import { fetchWeather, getLocation, type WeatherNow } from "./weather";
 
 /**
- * Shared wardrobe state for the Phase 6 wiring.
+ * Shared wardrobe state.
  *
- * These hooks seed from the local mock data so pages render instantly and still
- * look fine offline, then swap in real backend data the moment the API responds.
+ * Pages read live backend data through these hooks; while a request is in
+ * flight the data is simply absent (callers render their loading/empty
+ * states) — no fake placeholder items, ever.
  */
 export function useCloset() {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["closet"],
     queryFn: () => fetchItems(),
-    initialData: closet,
     gcTime: 5 * 60 * 1000,
   });
+  return { ...query, data: query.data ?? [] };
 }
 
 export function useItem(id: string): { data: ClosetItem | undefined; isFetching: boolean } {
   const query = useQuery({
     queryKey: ["item", id],
     queryFn: () => (id ? fetchItem(id) : Promise.resolve(undefined)),
-    initialData: closet.find((i) => i.id === id),
+    enabled: Boolean(id),
     gcTime: 5 * 60 * 1000,
   });
   return { data: query.data, isFetching: query.isFetching };
@@ -166,4 +168,49 @@ export function useChallenges() {
 export function itemsByIds(ids: string[], items: ClosetItem[]): ClosetItem[] {
   const byId = new Map(items.map((i) => [i.id, i]));
   return ids.map((id) => byId.get(id)).filter((i): i is ClosetItem => Boolean(i));
+}
+
+// --- The one daily deck ---------------------------------------------------------
+
+function currentSeason(d: Date = new Date()): string {
+  const month = d.getMonth() + 1;
+  if (month >= 3 && month <= 5) return "spring";
+  if (month >= 6 && month <= 8) return "summer";
+  if (month >= 9 && month <= 11) return "fall";
+  return "winter";
+}
+
+/**
+ * Coarse weather descriptor for the LLM context. Bucketing (instead of the raw
+ * degree number) keeps the backend deck-cache key stable through the day, so
+ * refresh/re-visit reuses the persisted deck instead of re-running Gemini every
+ * time the thermometer ticks over. Condition changes still bust the cache.
+ */
+function weatherBucket(tempC: number): string {
+  if (tempC <= 5) return "cold";
+  if (tempC <= 12) return "cool";
+  if (tempC <= 20) return "mild";
+  if (tempC <= 26) return "warm";
+  return "hot";
+}
+
+function weatherNotes(w: WeatherNow): string {
+  return `${weatherBucket(w.temperature)} and ${w.condition.toLowerCase()}`;
+}
+
+/**
+ * THE outfit deck. Home, Ideas, Planner's picker and the Fitting Room all draw
+ * from this single weather-aware context — identical react-query keys dedupe
+ * to ONE generation (and one server-side deck-cache hit) instead of four.
+ */
+export function useDailyDeck() {
+  const { data: weather } = useWeather();
+  const ctx = useMemo(
+    () =>
+      weather
+        ? { occasion: "casual", season: currentSeason(), notes: weatherNotes(weather) }
+        : undefined,
+    [weather],
+  );
+  return useOutfits(ctx, Boolean(ctx));
 }

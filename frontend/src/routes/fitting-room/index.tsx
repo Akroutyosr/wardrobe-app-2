@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Camera, Download, Loader2, RotateCcw, Shirt, Trash2 } from "lucide-react";
 import { useCloset, useOutfits, useSavedOutfits, itemsByIds } from "@/lib/use-wardrobe";
 import {
+  IMAGE_BASE,
   deleteSavedFittingPhoto,
   getSavedFittingPhoto,
   getTryOnSession,
@@ -130,10 +131,12 @@ function FittingRoom() {
   const selectedOutfit = outfits.find((o) => o.id === outfitId) ?? null;
   const selectedItems = selectedOutfit ? itemsByIds(selectedOutfit.items, closet) : [];
 
+  // Result and reference photos are served by the backend (Render), not the
+  // frontend origin — route through IMAGE_BASE or they 404 in production.
   const resultUrl = session?.result_image_path
     ? session.result_image_path.startsWith("http")
       ? session.result_image_path
-      : `${window.location.origin}${session.result_image_path}`
+      : IMAGE_BASE(session.result_image_path)
     : null;
 
   return (
@@ -191,68 +194,68 @@ function FittingRoom() {
           </section>
 
           <div className="space-y-4 lg:mt-0 lg:min-w-0 lg:flex-1">
-          <section className="rounded-4xl bg-card p-5 shadow-lift">
-            <h2 className="text-sm font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
-              2 · Pick the look
-            </h2>
-            {outfits.length === 0 ? (
-              <p className="mt-3 text-sm font-semibold text-muted-foreground">
-                {hasSaved ? (
-                  <>No saved looks to try on — save some from the Ideas page first.</>
-                ) : (
-                  <>No looks yet — generate one on the home screen first.</>
-                )}
-              </p>
-            ) : (
-              <div className="mt-3 space-y-2">
-                {outfits.slice(0, 6).map((o) => {
-                  const items = itemsByIds(o.items, closet);
-                  const active = outfitId === o.id;
-                  return (
-                    <button
-                      key={o.id}
-                      onClick={() => setOutfitId(o.id)}
-                      className={`tappable flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left ${
-                        active ? "bg-rose text-primary-foreground" : "bg-secondary"
-                      }`}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        {items[0]?.image && (
-                          <img
-                            src={items[0].image}
-                            alt=""
-                            className="h-10 w-10 shrink-0 rounded-xl object-cover"
-                          />
-                        )}
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-bold">{o.title}</span>
-                          <span className="block text-xs opacity-75">
-                            {items.map((i) => i.name).join(", ") || o.id}
-                          </span>
-                        </span>
-                      </span>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-wide ${
-                          active ? "bg-card/30" : categoryColor[items[0]?.category ?? "tops"]
+            <section className="rounded-4xl bg-card p-5 shadow-lift">
+              <h2 className="text-sm font-extrabold uppercase tracking-[0.2em] text-muted-foreground">
+                2 · Pick the look
+              </h2>
+              {outfits.length === 0 ? (
+                <p className="mt-3 text-sm font-semibold text-muted-foreground">
+                  {hasSaved ? (
+                    <>No saved looks to try on — save some from the Ideas page first.</>
+                  ) : (
+                    <>No looks yet — generate one on the home screen first.</>
+                  )}
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {outfits.slice(0, 6).map((o) => {
+                    const items = itemsByIds(o.items, closet);
+                    const active = outfitId === o.id;
+                    return (
+                      <button
+                        key={o.id}
+                        onClick={() => setOutfitId(o.id)}
+                        className={`tappable flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left ${
+                          active ? "bg-rose text-primary-foreground" : "bg-secondary"
                         }`}
                       >
-                        {items.length} pcs
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+                        <span className="flex min-w-0 items-center gap-2">
+                          {items[0]?.image && (
+                            <img
+                              src={items[0].image}
+                              alt=""
+                              className="h-10 w-10 shrink-0 rounded-xl object-cover"
+                            />
+                          )}
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-bold">{o.title}</span>
+                            <span className="block text-xs opacity-75">
+                              {items.map((i) => i.name).join(", ") || o.id}
+                            </span>
+                          </span>
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6rem] font-extrabold uppercase tracking-wide ${
+                            active ? "bg-card/30" : categoryColor[items[0]?.category ?? "tops"]
+                          }`}
+                        >
+                          {items.length} pcs
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
 
-          <button
-            onClick={tryItOn}
-            disabled={!outfitId || !photoPath}
-            className="tappable flex w-full items-center justify-center gap-2 rounded-3xl bg-rose py-4 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
-          >
-            <Shirt size={17} /> Try it on
-          </button>
-        </div>
+            <button
+              onClick={tryItOn}
+              disabled={!outfitId || !photoPath}
+              className="tappable flex w-full items-center justify-center gap-2 rounded-3xl bg-rose py-4 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
+            >
+              <Shirt size={17} /> Try it on
+            </button>
+          </div>
         </div>
       )}
 
@@ -300,13 +303,7 @@ function FittingRoom() {
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="overflow-hidden rounded-3xl bg-muted p-2">
                   <img
-                    src={
-                      photoPath
-                        ? photoPath.startsWith("http")
-                          ? photoPath
-                          : `${window.location.origin}${photoPath}`
-                        : ""
-                    }
+                    src={photoPath ? IMAGE_BASE(photoPath) : ""}
                     alt="Before"
                     className="w-full rounded-2xl"
                   />

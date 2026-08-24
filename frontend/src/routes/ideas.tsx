@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Heart, X, RotateCcw } from "lucide-react";
-import { useCloset, useOutfits, useSavedOutfits, itemsByIds } from "@/lib/use-wardrobe";
+import { toast } from "sonner";
+import { useCloset, useDailyDeck, useSavedOutfits, itemsByIds } from "@/lib/use-wardrobe";
 import { saveOutfit, unsaveOutfit } from "@/lib/api";
 import { ItemThumb } from "@/components/ui-bits";
 import { Confetti } from "@/components/Confetti";
@@ -27,10 +28,11 @@ function Ideas() {
   const [leaving, setLeaving] = useState<"left" | "right" | null>(null);
   const [fire, setFire] = useState(0);
   const { data: closet } = useCloset();
-  const { data: outfits } = useOutfits({ notes: "inspire me" });
+  // Same shared daily deck as Home — one generation serves the whole app.
+  const { data: outfits } = useDailyDeck();
   const { data: savedOutfits, refetch: refetchSaved } = useSavedOutfits();
 
-  const current = outfits[index];
+  const current = outfits?.[index];
   const saved = savedOutfits ?? [];
   const resolve = (ids: string[]) => itemsByIds(ids, closet);
 
@@ -39,7 +41,7 @@ function Ideas() {
     setLeaving(dir);
     if (dir === "right") {
       setFire((f) => f + 1);
-      void saveOutfit(current.id).catch(() => {});
+      void saveOutfit(current.id).catch(() => toast.error("Couldn't save that look"));
     }
     setTimeout(() => {
       setIndex((i) => i + 1);
@@ -74,7 +76,17 @@ function Ideas() {
       {tab === "deck" ? (
         <div className="relative min-h-[30rem]">
           <Confetti fire={fire} />
-          {current ? (
+          {!outfits ? (
+            <div className="rounded-3xl bg-card p-10 text-center shadow-lift">
+              <div className="mx-auto h-16 w-16 animate-breathe rounded-full bg-blush text-3xl leading-[4rem]">
+                🛠️
+              </div>
+              <h2 className="display mt-4 text-2xl">Building idea cards…</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Styling outfits from your own closet — this can take a minute.
+              </p>
+            </div>
+          ) : current ? (
             <>
               <div
                 className={`rounded-3xl bg-card p-5 shadow-lift transition-all duration-300 ${
@@ -118,7 +130,7 @@ function Ideas() {
                 </button>
               </div>
               <p className="mt-4 text-center text-xs font-semibold text-muted-foreground">
-                {outfits.length - index} ideas left today
+                {Math.max(outfits.length - index, 0)} ideas left in this deck
               </p>
             </>
           ) : (
@@ -159,8 +171,9 @@ function Ideas() {
               <p className="mt-2 text-sm font-bold leading-snug">{o.title}</p>
               <button
                 onClick={() => {
-                  void unsaveOutfit(o.id).catch(() => {});
-                  void refetchSaved();
+                  void unsaveOutfit(o.id)
+                    .catch(() => toast.error("Couldn't remove that look"))
+                    .finally(() => refetchSaved());
                 }}
                 aria-label={`Remove ${o.title} from saved`}
                 className="tappable mt-2 inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[0.65rem] font-bold text-muted-foreground"

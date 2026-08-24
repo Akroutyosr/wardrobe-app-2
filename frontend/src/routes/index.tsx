@@ -1,11 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Shuffle, ArrowRight, Flame, Trophy, Loader2 } from "lucide-react";
-import { extraFor } from "@/lib/twinish-data";
-import { useCloset, useOutfits, useStats, useWeather, itemsByIds } from "@/lib/use-wardrobe";
+import { useCloset, useDailyDeck, useStats, useWeather, itemsByIds } from "@/lib/use-wardrobe";
 import type { WardrobeStats } from "@/lib/api";
 import { weatherEmoji } from "@/lib/weather";
-import type { WeatherNow } from "@/lib/weather";
 import { Confetti } from "@/components/Confetti";
 import { PlateCard } from "@/components/plate";
 import { QuickLog } from "@/components/QuickLog";
@@ -68,32 +66,6 @@ function DeckLoading() {
   );
 }
 
-function currentSeason(d: Date = new Date()): string {
-  const month = d.getMonth() + 1;
-  if (month >= 3 && month <= 5) return "spring";
-  if (month >= 6 && month <= 8) return "summer";
-  if (month >= 9 && month <= 11) return "fall";
-  return "winter";
-}
-
-/**
- * Coarse weather descriptor for the LLM context. Bucketing (instead of the raw
- * degree number) keeps the backend deck-cache key stable through the day, so
- * refresh/re-visit reuses the persisted deck instead of re-running Gemini every
- * time the thermometer ticks over. Condition changes still bust the cache.
- */
-function weatherBucket(tempC: number): string {
-  if (tempC <= 5) return "cold";
-  if (tempC <= 12) return "cool";
-  if (tempC <= 20) return "mild";
-  if (tempC <= 26) return "warm";
-  return "hot";
-}
-
-function weatherNotes(w: WeatherNow): string {
-  return `${weatherBucket(w.temperature)} and ${w.condition.toLowerCase()}`;
-}
-
 function Today() {
   const [index, setIndex] = useState(0);
   const [fire] = useState(0);
@@ -130,31 +102,14 @@ function Today() {
   };
   const { data: stats = STATS_DEFAULT } = useStats();
   const { data: challenges = [] } = useChallenges();
-  // Pass the live weather into the LLM deck so the generated outfits and their
-  // reasoning actually reflect today's real conditions. Generation waits for
-  // the weather fetch so we never fire a wasteful empty-context deck first.
-  const {
-    data: outfits,
-    isFetching,
-    error,
-    refetch,
-  } = useOutfits(
-    weather
-      ? {
-          occasion: "casual",
-          season: currentSeason(),
-          notes: weatherNotes(weather),
-        }
-      : undefined,
-    Boolean(weather),
-  );
+  // The one shared daily deck (weather-aware, cached across every page).
+  const { data: outfits, isFetching, error, refetch } = useDailyDeck();
 
   const deck = outfits ?? [];
   const outfit = deck.length > 0 ? deck[index % deck.length] : null;
   const loadingDeck = !outfit && (isFetching || !weather);
 
   const items = outfit ? itemsByIds(outfit.items, closet) : [];
-  const extra = outfit ? extraFor(outfit.id) : null;
   const temp = weather?.temperature;
   const condition = weather ? weather.condition : "Checking the sky…";
   const emoji = weather ? weatherEmoji(weather.weatherCode) : "🔮";
@@ -277,9 +232,11 @@ function Today() {
                 items={items}
               />
 
-              <p className="handwritten mt-4 text-[1.25rem] leading-snug text-foreground/75">
-                “{extra?.handNote}”
-              </p>
+              {outfit.caption ? (
+                <p className="handwritten mt-4 line-clamp-3 text-[1.25rem] leading-snug text-foreground/75">
+                  “{outfit.caption}”
+                </p>
+              ) : null}
 
               <div className="mt-4 flex gap-2">
                 <Link
