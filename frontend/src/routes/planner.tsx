@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
 import { Plus, Star } from "lucide-react";
 import { toast } from "sonner";
+import { BottomSheet } from "@/components/bottom-sheet";
 import { useCloset, useDailyDeck, itemsByIds } from "@/lib/use-wardrobe";
 import { IMAGE_BASE, fetchPlannerWeek, rateOutfit, setPlannerDay } from "@/lib/api";
 import { dayColor } from "@/lib/palette";
@@ -228,55 +229,44 @@ function Planner() {
       </p>
 
       {picking !== null && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 px-4 pb-6">
-          <div className="animate-print w-full max-w-[28rem] rounded-3xl bg-card p-5 shadow-lift">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="display text-2xl">Pick one of today's looks</h2>
+        <BottomSheet isOpen onClose={() => setPicking(null)} title="Pick one of today's looks">
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+            {(outfits ?? []).length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {outfits === undefined
+                  ? "Today's looks are still being styled…"
+                  : "No looks yet — generate one on the home screen first."}
+              </p>
+            )}
+            {(outfits ?? []).map((o, n) => (
               <button
-                onClick={() => setPicking(null)}
-                className="tappable rounded-full bg-muted px-3 py-1 text-xs font-bold"
+                key={o.id}
+                onClick={() => fill(picking, o.id)}
+                className={`tappable flex w-full items-center gap-3 rounded-2xl p-2 text-left text-ink ${dayColor(n)}`}
               >
-                Close
+                <div className="grid w-16 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg">
+                  {itemsByIds(o.items, closet)
+                    .slice(0, 4)
+                    .map((it) => (
+                      <img
+                        key={it.id}
+                        src={it.image}
+                        alt=""
+                        className="aspect-square object-cover"
+                      />
+                    ))}
+                </div>
+                <span className="text-sm font-bold leading-tight">{o.title}</span>
               </button>
-            </div>
-            <div className="max-h-[50vh] space-y-2 overflow-y-auto">
-              {(outfits ?? []).length === 0 && (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  {outfits === undefined
-                    ? "Today's looks are still being styled…"
-                    : "No looks yet — generate one on the home screen first."}
-                </p>
-              )}
-              {(outfits ?? []).map((o, n) => (
-                <button
-                  key={o.id}
-                  onClick={() => fill(picking, o.id)}
-                  className={`tappable flex w-full items-center gap-3 rounded-2xl p-2 text-left text-ink ${dayColor(n)}`}
-                >
-                  <div className="grid w-16 shrink-0 grid-cols-2 gap-0.5 overflow-hidden rounded-lg">
-                    {itemsByIds(o.items, closet)
-                      .slice(0, 4)
-                      .map((it) => (
-                        <img
-                          key={it.id}
-                          src={it.image}
-                          alt=""
-                          className="aspect-square object-cover"
-                        />
-                      ))}
-                  </div>
-                  <span className="text-sm font-bold leading-tight">{o.title}</span>
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
-        </div>
+        </BottomSheet>
       )}
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <Link to="/ideas" className="tappable rounded-3xl bg-olivine px-4 py-4 text-left text-ink">
           <span className="display block text-2xl">Find more looks</span>
-          <span className="text-xs font-bold opacity-75">Swipe the idea deck</span>
+          <span className="text-xs font-bold opacity-75">Browse more looks</span>
         </Link>
         <Link to="/add" className="tappable rounded-3xl bg-maize px-4 py-4 text-left text-ink">
           <span className="display block text-2xl">Add an item</span>

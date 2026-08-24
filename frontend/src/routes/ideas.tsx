@@ -81,9 +81,9 @@ function Ideas() {
               <div className="mx-auto h-16 w-16 animate-breathe rounded-full bg-blush text-3xl leading-[4rem]">
                 🛠️
               </div>
-              <h2 className="display mt-4 text-2xl">Building idea cards…</h2>
+              <h2 className="display mt-4 text-2xl">Styling today&apos;s looks…</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Styling outfits from your own closet — this can take a minute.
+                Built from your own closet — this can take a minute.
               </p>
             </div>
           ) : current ? (
@@ -130,13 +130,13 @@ function Ideas() {
                 </button>
               </div>
               <p className="mt-4 text-center text-xs font-semibold text-muted-foreground">
-                {Math.max(outfits.length - index, 0)} ideas left in this deck
+                {Math.max(outfits.length - index, 0)} looks left today
               </p>
             </>
           ) : (
             <div className="rounded-3xl bg-card p-10 text-center shadow-lift">
               <p className="text-5xl">🌷</p>
-              <h2 className="mt-4 text-xl font-bold">That's every idea for today!</h2>
+              <h2 className="mt-4 text-xl font-bold">You&apos;ve seen every look for today!</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 You saved {saved.length}. Fresh combos land again tomorrow morning.
               </p>
