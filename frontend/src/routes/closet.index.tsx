@@ -5,6 +5,7 @@ import { categories, seasons } from "@/lib/closet-data";
 import { useCloset, useColors } from "@/lib/use-wardrobe";
 import { Sticker } from "@/components/scrapbook";
 import { SafeImage } from "@/components/ui-bits";
+import { ClosetDoors } from "@/components/closet-doors";
 import { categoryColor } from "@/lib/palette";
 
 export const Route = createFileRoute("/closet/")({
@@ -48,6 +49,7 @@ function Closet() {
 
   return (
     <div className="animate-float-in">
+      <ClosetDoors />
       <header className="mb-4 flex items-end justify-between gap-2">
         <div>
           <h1 className="display text-4xl">My closet</h1>
