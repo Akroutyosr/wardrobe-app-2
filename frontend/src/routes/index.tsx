@@ -8,7 +8,6 @@ import { Confetti } from "@/components/Confetti";
 import { PlateCard } from "@/components/plate";
 import { QuickLog } from "@/components/QuickLog";
 import { ChallengeCard } from "@/components/ChallengeCard";
-import { StitchFrame } from "@/components/stitch-frame";
 import { HandwrittenText } from "@/components/handwritten-text";
 import { dismissNudgeToday, markLoggedToday, shouldShowNudge } from "@/lib/habit-nudge";
 import { currencySymbol, fetchSuggestedOutfit } from "@/lib/api";
@@ -278,7 +277,6 @@ function Today() {
             </div>
           )}
         </div>
-        <StitchFrame />
       </section>
 
       {/* second column on lg: stats, score, quick links */}

@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { useCloset, useOutfit, itemsByIds } from "@/lib/use-wardrobe";
 import { rateOutfit, saveOutfit, unsaveOutfit } from "@/lib/api";
 import { Callout, WashiTape, ArrowNote } from "@/components/scrapbook";
-import { StitchFrame } from "@/components/stitch-frame";
 import { HandwrittenText } from "@/components/handwritten-text";
 
 export const Route = createFileRoute("/look/$outfitId")({
@@ -165,7 +164,6 @@ function LookPage() {
             {outfit?.title ?? ""}
           </HandwrittenText>
           {outfit.caption ? <ArrowNote className="mt-2">{outfit.caption}</ArrowNote> : null}
-          <StitchFrame delay={200} />
         </section>
 
         {/* the tapped callout's detail card + rating */}
