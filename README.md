@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/Akroutyosr/wardrobe-app-2/actions/workflows/ci.yml/badge.svg)](https://github.com/Akroutyosr/wardrobe-app-2/actions/workflows/ci.yml)
 
-**Live app:** https://twinish.akroutyosr.workers.dev/· **API:** https://wardrobe-app-2.onrender.com/api/health
+**Live app:** https://twinish.akroutyosr.workers.dev/ · **API:** https://wardrobe-app-2.onrender.com/api/health
 
 Twinish turns a real wardrobe into a daily styling companion: every item photo-tagged
 and embedded, outfits generated from what you actually own, one-tap wear logging that
