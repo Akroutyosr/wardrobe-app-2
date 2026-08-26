@@ -131,4 +131,4 @@ Authoritative list lives in `backend/app/main.py`. Highlights:
 ## More docs
 
 - [`MASTERPLAN.md`](MASTERPLAN.md): project plan & decision log
-- [`README-backend.md`](README-backend.md) — tagging pipeline deep-dive + eval methodology
+- [`README-backend.md`](README-backend.md): tagging pipeline deep-dive + eval methodology
