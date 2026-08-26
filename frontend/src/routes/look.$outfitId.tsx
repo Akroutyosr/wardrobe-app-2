@@ -7,6 +7,7 @@ import { useCloset, useOutfit, itemsByIds } from "@/lib/use-wardrobe";
 import { rateOutfit, saveOutfit, unsaveOutfit } from "@/lib/api";
 import { Callout, WashiTape, ArrowNote } from "@/components/scrapbook";
 import { StitchFrame } from "@/components/stitch-frame";
+import { HandwrittenText } from "@/components/handwritten-text";
 
 export const Route = createFileRoute("/look/$outfitId")({
   head: () => ({
@@ -160,7 +161,9 @@ function LookPage() {
             <span className="pointer-events-none absolute -bottom-2 right-1 text-2xl">⭐️</span>
           </div>
 
-          <p className="handwritten mt-5 text-2xl leading-snug">{outfit?.title ?? ""}</p>
+          <HandwrittenText as="p" className="mt-5 text-2xl leading-snug">
+            {outfit?.title ?? ""}
+          </HandwrittenText>
           {outfit.caption ? <ArrowNote className="mt-2">{outfit.caption}</ArrowNote> : null}
           <StitchFrame delay={200} />
         </section>
@@ -196,7 +199,9 @@ function LookPage() {
           </section>
 
           <section className="rounded-3xl bg-secondary px-5 py-4 text-center">
-            <p className="handwritten text-2xl text-secondary-foreground">How did this one feel?</p>
+            <HandwrittenText as="p" className="text-2xl text-secondary-foreground">
+              How did this one feel?
+            </HandwrittenText>
             <div className="mt-2 flex justify-center gap-1.5">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button

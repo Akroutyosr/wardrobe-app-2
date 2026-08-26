@@ -8,6 +8,7 @@ import { useCloset, useItem, useOutfits, useSavedOutfits, itemsByIds } from "@/l
 import { currencySymbol, deleteItem, fetchItemCpw, setItemPrice } from "@/lib/api";
 import { Badge, SafeImage } from "@/components/ui-bits";
 import { Callout, ArrowNote, WashiTape } from "@/components/scrapbook";
+import { HandwrittenText } from "@/components/handwritten-text";
 
 export const Route = createFileRoute("/closet/$itemId")({
   head: () => ({
@@ -219,7 +220,9 @@ function ItemDetail() {
         </section>
 
         <div className="mt-4 md:mt-0 md:min-w-0 md:flex-1">
-          <p className="handwritten text-2xl leading-snug text-foreground/80">{item.note}</p>
+          <HandwrittenText as="p" className="text-2xl leading-snug text-foreground/80">
+            {item.note}
+          </HandwrittenText>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <Badge tone="primary">{item.color}</Badge>

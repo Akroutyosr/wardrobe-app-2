@@ -9,6 +9,7 @@ import { PlateCard } from "@/components/plate";
 import { QuickLog } from "@/components/QuickLog";
 import { ChallengeCard } from "@/components/ChallengeCard";
 import { StitchFrame } from "@/components/stitch-frame";
+import { HandwrittenText } from "@/components/handwritten-text";
 import { dismissNudgeToday, markLoggedToday, shouldShowNudge } from "@/lib/habit-nudge";
 import { currencySymbol, fetchSuggestedOutfit } from "@/lib/api";
 import { useChallenges } from "@/lib/use-wardrobe";
@@ -234,9 +235,12 @@ function Today() {
               />
 
               {outfit.caption ? (
-                <p className="handwritten mt-4 line-clamp-3 text-[1.25rem] leading-snug text-foreground/75">
-                  “{outfit.caption}”
-                </p>
+                <HandwrittenText
+                  as="p"
+                  className="mt-4 line-clamp-3 text-[1.25rem] leading-snug text-foreground/75"
+                >
+                  "{outfit.caption}"
+                </HandwrittenText>
               ) : null}
 
               <div className="mt-4 flex gap-2">
