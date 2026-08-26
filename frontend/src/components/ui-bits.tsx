@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import type { ClosetItem } from "@/lib/closet-data";
 
 export function Chip({
@@ -89,10 +89,12 @@ export function SafeImage({
   src,
   alt,
   className = "",
+  style,
 }: {
   src: string;
   alt: string;
   className?: string;
+  style?: CSSProperties;
 }) {
   const [failed, setFailed] = useState(false);
   if (failed || !src) {
@@ -100,6 +102,7 @@ export function SafeImage({
       <span
         role="img"
         aria-label={alt}
+        style={style}
         className={`flex items-center justify-center bg-muted text-2xl ${className}`}
       >
         🧺
@@ -107,6 +110,13 @@ export function SafeImage({
     );
   }
   return (
-    <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} className={className} />
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      style={style}
+      className={className}
+    />
   );
 }

@@ -121,7 +121,7 @@ function Closet() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4 xl:grid-cols-5">
-          {items.map((item) => (
+          {items.map((item, idx) => (
             <Link
               key={item.id}
               to="/closet/$itemId"
@@ -132,7 +132,8 @@ function Closet() {
                 <SafeImage
                   src={item.image}
                   alt={item.name}
-                  className="aspect-square w-full rounded-[0.9rem] object-cover"
+                  className="aspect-square w-full animate-develop rounded-[0.9rem] object-cover"
+                  style={{ animationDelay: `${Math.min(idx, 11) * 70}ms` }}
                 />
                 {item.cpw != null && (
                   <div className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2 py-0.5 text-[0.65rem] font-extrabold text-rose backdrop-blur-sm">

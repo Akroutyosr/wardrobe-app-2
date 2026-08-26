@@ -174,7 +174,7 @@ function AddItem() {
           <img
             src={reviewed.imageUrl}
             alt="Newly added item"
-            className="w-full rounded-2xl object-cover"
+            className="w-full animate-develop rounded-2xl object-cover"
           />
           <p className="mt-4 text-base font-bold">Here's what we spotted 🌼</p>
           <p className="text-sm text-muted-foreground">
