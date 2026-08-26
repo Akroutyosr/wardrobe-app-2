@@ -1,6 +1,6 @@
 # Twinish — your closet, but a game 💅🏻
 
-[![ci](https://github.com/Akroutyosr/wardrobe-app-2/actions/workflows/ci.yml/badge.svg)](https://github.com/Akroutyosr/wardrobe-app-2/actions/workflows/ci.yml)
+
 
 **Live app:** https://twinish.akroutyosr.workers.dev/ · **API:** https://wardrobe-app-2.onrender.com/api/health
 
