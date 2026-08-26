@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Camera, Check, Plus } from "lucide-react";
 import { Sticker } from "@/components/scrapbook";
 import { Confetti } from "@/components/Confetti";
+import { StitchFrame } from "@/components/stitch-frame";
 import { addItem, uploadPhoto, type Tags } from "@/lib/api";
 import { useCloset } from "@/lib/use-wardrobe";
 
@@ -170,7 +171,8 @@ function AddItem() {
       )}
 
       {stage === "review" && reviewed && (
-        <div className="animate-pop rounded-3xl bg-card p-5 shadow-lift">
+        <div className="relative animate-pop rounded-3xl bg-card p-5 shadow-lift">
+          <StitchFrame delay={250} />
           <img
             src={reviewed.imageUrl}
             alt="Newly added item"

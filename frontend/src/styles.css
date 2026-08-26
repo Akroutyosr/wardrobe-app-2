@@ -79,6 +79,7 @@
   --animate-sheet-up: sheet-up 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-fade-fast: fade-fast 0.22s ease-out both;
   --animate-develop: polaroid-develop 2.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-sew: sew-in 1.15s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
 }
 
 :root {
@@ -200,6 +201,13 @@
     opacity: 1;
     filter: none;
   }
+}
+
+/* Sewing: a solid thread traces the seam once (dashoffset 100 -> 0 with
+   pathLength normalized to 100), laid over a faint dotted stitch guide. */
+@keyframes sew-in {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
 }
 
 @utility tappable {
