@@ -59,15 +59,14 @@ export function QuizResult({
         </p>
         <h2 className="display mb-1 text-3xl font-bold text-gray-900">{result.personality_name}</h2>
         <p className="mb-4 font-medium italic text-[#F2619C]">{result.personality_tagline}</p>
-        <p className="mb-6 text-sm leading-relaxed text-gray-600">{result.personality_description}</p>
+        <p className="mb-6 text-sm leading-relaxed text-gray-600">
+          {result.personality_description}
+        </p>
         <StyleMeter {...result.axis_scores} />
         <div className="mt-6 flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-medium text-gray-500">Wardrobe strengths:</span>
           {result.wardrobe_strengths.map((s) => (
-            <span
-              key={s}
-              className="rounded-full bg-[#FAA4B5]/20 px-2 py-1 text-xs text-[#F2619C]"
-            >
+            <span key={s} className="rounded-full bg-[#FAA4B5]/20 px-2 py-1 text-xs text-[#F2619C]">
               {s}
             </span>
           ))}
@@ -95,10 +94,7 @@ export function QuizResult({
           </p>
         </div>
         {result.shopping_recommendations.map((rec, i) => (
-          <div
-            key={i}
-            className="rounded-2xl border border-gray-100 bg-card p-4 shadow-sm"
-          >
+          <div key={i} className="rounded-2xl border border-gray-100 bg-card p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-medium text-gray-900">{rec.item_type}</p>
@@ -117,9 +113,7 @@ export function QuizResult({
             </div>
             <button
               className="tappable mt-3 text-sm font-medium text-[#F2619C]"
-              onClick={() =>
-                navigate({ to: "/should-i-buy", search: { hint: rec.item_type } })
-              }
+              onClick={() => navigate({ to: "/should-i-buy", search: { hint: rec.item_type } })}
             >
               Check something similar →
             </button>

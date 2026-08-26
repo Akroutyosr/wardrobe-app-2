@@ -392,7 +392,9 @@ function buildSection1(items: QuizItemSource[]): QuizQuestion[] {
   const withImage = items.filter((i) => i.image);
   return SECTION_1_PROMPTS.map((prompt, idx) => {
     const [a, b] = pickPair(withImage);
-    const options = [a, b].filter(Boolean).map((it, i) => toOption(it!, `q${idx + 1}-${i === 0 ? "a" : "b"}`));
+    const options = [a, b]
+      .filter(Boolean)
+      .map((it, i) => toOption(it!, `q${idx + 1}-${i === 0 ? "a" : "b"}`));
     return {
       id: `q${idx + 1}`,
       section: 1 as const,
@@ -415,7 +417,9 @@ function buildSection2(items: QuizItemSource[]): QuizQuestion[] {
     const matching = items.filter((i) => i.image && matchesScenario(i, scenario));
     const candidates = matching.length >= 2 ? matching : items.filter((i) => i.image);
     const [a, b] = pickPair(candidates);
-    const options = [a, b].filter(Boolean).map((it, i) => toOption(it!, `q${idx + 7}-${i === 0 ? "a" : "b"}`));
+    const options = [a, b]
+      .filter(Boolean)
+      .map((it, i) => toOption(it!, `q${idx + 7}-${i === 0 ? "a" : "b"}`));
     return {
       id: `q${idx + 7}`,
       section: 2 as const,

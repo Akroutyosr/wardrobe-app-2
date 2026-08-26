@@ -26,7 +26,10 @@ export const Route = createFileRoute("/quiz")({
           "Eighteen questions across your real wardrobe, real scenarios and your shopping instincts — Twinish names your style personality and the gaps worth filling.",
       },
       { property: "og:title", content: "Style Quiz · Twinish" },
-      { property: "og:description", content: "Find your style personality, grounded in your real closet." },
+      {
+        property: "og:description",
+        content: "Find your style personality, grounded in your real closet.",
+      },
     ],
   }),
   component: Quiz,
@@ -85,7 +88,9 @@ function Quiz() {
   const [meter, setMeter] = useState<MeterProps>(DEFAULT_METER);
   const [dna, setDna] = useState<WardrobeDNA | null>(null);
   const [result, setResult] = useState<PersonalityResult | null>(null);
-  const [oldResult, setOldResult] = useState<(PersonalityResult & { taken_at: string }) | null>(null);
+  const [oldResult, setOldResult] = useState<(PersonalityResult & { taken_at: string }) | null>(
+    null,
+  );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
