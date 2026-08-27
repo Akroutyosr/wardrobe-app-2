@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Euro, Plus } from "lucide-react";
 import { categories, seasons } from "@/lib/closet-data";
 import { useCloset, useColors } from "@/lib/use-wardrobe";
 import { Sticker } from "@/components/scrapbook";
 import { SafeImage } from "@/components/ui-bits";
-import { ClosetDoors } from "@/components/closet-doors";
+import { ScrapbookSpread } from "@/components/scrapbook-spread";
 import { categoryColor } from "@/lib/palette";
 
 export const Route = createFileRoute("/closet/")({
@@ -24,6 +24,9 @@ export const Route = createFileRoute("/closet/")({
   component: Closet,
 });
 
+/** ms before the spread unmounts on first visit */
+const SPREAD_DURATION = 680;
+
 function Closet() {
   const [category, setCategory] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
@@ -32,6 +35,16 @@ function Closet() {
   const { data: colors } = useColors();
   const colorList = colors ?? [];
   const unpricedCount = useMemo(() => closet.filter((i) => i.price == null).length, [closet]);
+
+  const [revealed, setRevealed] = useState(
+    () => !!sessionStorage.getItem("twinish_closet_visited"),
+  );
+
+  useEffect(() => {
+    if (revealed) return;
+    const t = setTimeout(() => setRevealed(true), SPREAD_DURATION + 40);
+    return () => clearTimeout(t);
+  }, [revealed]);
 
   const items = useMemo(
     () =>
@@ -47,10 +60,17 @@ function Closet() {
   const toggle = (val: string, cur: string | null, set: (v: string | null) => void) =>
     set(cur === val ? null : val);
 
+  /** Reveal-up class with stagger delay (only after spread unmounts) */
+  const reveal = (delayMs: number) => (revealed ? `animate-reveal` : "opacity-0");
+
   return (
-    <div className="animate-float-in">
-      <ClosetDoors />
-      <header className="mb-4 flex items-end justify-between gap-2">
+    <div>
+      <ScrapbookSpread />
+
+      <header
+        className={`mb-4 flex items-end justify-between gap-2 ${reveal(0)}`}
+        style={{ animationDelay: "0ms" }}
+      >
         <div>
           <h1 className="display text-4xl">My closet</h1>
           <p className="mt-1 font-mono text-[0.66rem] uppercase tracking-[0.25em] text-muted-foreground">
@@ -76,7 +96,10 @@ function Closet() {
         </div>
       </header>
 
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+      <div
+        className={`mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] ${reveal(0)}`}
+        style={{ animationDelay: "60ms" }}
+      >
         {categories.map((c) => (
           <Sticker
             key={c}
@@ -87,7 +110,10 @@ function Closet() {
           </Sticker>
         ))}
       </div>
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+      <div
+        className={`mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] ${reveal(0)}`}
+        style={{ animationDelay: "100ms" }}
+      >
         {colorList.map((c) => (
           <Sticker
             key={c}
@@ -100,7 +126,10 @@ function Closet() {
           </Sticker>
         ))}
       </div>
-      <div className="mb-6 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+      <div
+        className={`mb-6 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] ${reveal(0)}`}
+        style={{ animationDelay: "140ms" }}
+      >
         {seasons.map((s) => (
           <Sticker
             key={s}
@@ -115,7 +144,10 @@ function Closet() {
       </div>
 
       {items.length === 0 ? (
-        <div className="rounded-3xl bg-card p-8 text-center shadow-polaroid">
+        <div
+          className={`rounded-3xl bg-card p-8 text-center shadow-polaroid ${reveal(0)}`}
+          style={{ animationDelay: "180ms" }}
+        >
           <p className="text-lg font-bold">Nothing matches that combo</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Try loosening a filter — there's plenty in here.
@@ -128,7 +160,8 @@ function Closet() {
               key={item.id}
               to="/closet/$itemId"
               params={{ itemId: item.id }}
-              className="tappable polaroid block p-2 transition-transform md:hover:scale-[1.02] md:hover:shadow-lg md:cursor-pointer"
+              className={`tappable polaroid block p-2 transition-transform md:hover:scale-[1.02] md:hover:shadow-lg md:cursor-pointer ${reveal(0)}`}
+              style={{ animationDelay: `${200 + idx * 40}ms` }}
             >
               <div className="relative">
                 <SafeImage
