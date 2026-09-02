@@ -1,4 +1,4 @@
-# Twinish: your closet, but a game 💅🏻
+# Twinish: your closet, but a more fun 💅🏻
 
 
 
